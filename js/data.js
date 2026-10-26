@@ -1,28 +1,29 @@
 // All data below is fictional and exists only for the mock-up.
 // Organisation names, people, reviews and figures are invented.
 
+// The four resource types from the Re.Source brand ("More resources for less waste").
 const POOLS = {
-  transport: { id: "transport", label: "Logistics & Transport", short: "Transport", icon: "truck",
-    blurb: "Vans, wheelchair buses and tail-lift trucks that would otherwise sit idle between runs.",
-    examples: ["14-seater & wheelchair vans", "Refrigerated food-rescue vans", "Volunteer drivers from logistics partners"] },
-  space: { id: "space", label: "Event & Storage Space", short: "Space", icon: "home",
-    blurb: "Training rooms, halls, kitchens and warehouse corners in one of the world's priciest rental markets.",
-    examples: ["Training rooms & halls", "Pallet & warehouse space", "Hot desks & commercial kitchens"] },
-  equipment: { id: "equipment", label: "Equipment & Assets", short: "Equipment", icon: "box",
-    blurb: "Event furniture, AV kits, laptops and mobility aids - borrowed for a day instead of bought.",
-    examples: ["Stackable chairs & tables", "PA systems & projectors", "Wheelchairs & refurbished laptops"] },
-  skills: { id: "skills", label: "Skills & Volunteer Cross-Sharing", short: "Skills", icon: "briefcase",
-    blurb: "Swap skilled volunteers and spare staff hours - a designer for two weeks, an accountant for audit season.",
-    examples: ["Pro-bono accountants", "Graphic design & IT support", "Trainers & facilitators"] },
+  space: { id: "space", label: "Spaces", short: "Spaces", sub: "Venues & facilities", icon: "home",
+    blurb: "Training rooms, halls, kitchens and storage that sit empty between programmes, in one of the world's priciest rental markets.",
+    examples: ["Training rooms & event halls", "Pallet & warehouse space", "Hot desks & commercial kitchens"] },
+  manpower: { id: "manpower", label: "Manpower", short: "Manpower", sub: "Volunteers & expertise", icon: "users",
+    blurb: "Volunteers and spare staff hours shared across organisations, from weekend drivers to experienced facilitators.",
+    examples: ["Volunteer drivers", "Trainers & facilitators", "Event and programme volunteers"] },
+  equipment: { id: "equipment", label: "Equipment", short: "Equipment", sub: "Tools & transport", icon: "truck",
+    blurb: "Vans, trucks, event furniture, AV kits and mobility aids, borrowed for a day instead of bought.",
+    examples: ["14-seater & wheelchair vans", "Chairs, tables & AV kits", "Wheelchairs & refurbished laptops"] },
+  services: { id: "services", label: "Services", short: "Services", sub: "Skills & support", icon: "tool",
+    blurb: "Professional skills given pro bono: a designer for two weeks, an accountant for audit season.",
+    examples: ["Pro-bono accountants", "Graphic design", "IT support"] },
 };
 
 // Standardised taxonomy: "<Type>: <Resource>"
 const CATEGORIES = [
-  { id: "van-14", pool: "transport", label: "Asset: 14-Seater Van", icon: "truck" },
-  { id: "van-wheelchair", pool: "transport", label: "Asset: Wheelchair Van", icon: "truck" },
-  { id: "van-chiller", pool: "transport", label: "Asset: Refrigerated Van", icon: "truck" },
-  { id: "truck-tail", pool: "transport", label: "Asset: Tail-lift Truck", icon: "truck" },
-  { id: "svc-driver", pool: "transport", label: "Service: Volunteer Driver", icon: "users" },
+  { id: "van-14", pool: "equipment", label: "Asset: 14-Seater Van", icon: "truck" },
+  { id: "van-wheelchair", pool: "equipment", label: "Asset: Wheelchair Van", icon: "truck" },
+  { id: "van-chiller", pool: "equipment", label: "Asset: Refrigerated Van", icon: "truck" },
+  { id: "truck-tail", pool: "equipment", label: "Asset: Tail-lift Truck", icon: "truck" },
+  { id: "svc-driver", pool: "manpower", label: "Manpower: Volunteer Driver", icon: "users" },
   { id: "space-training", pool: "space", label: "Space: Training Room", icon: "home" },
   { id: "space-hall", pool: "space", label: "Space: Event Hall", icon: "home" },
   { id: "space-storage", pool: "space", label: "Space: Storage", icon: "box" },
@@ -32,15 +33,15 @@ const CATEGORIES = [
   { id: "eq-av", pool: "equipment", label: "Equipment: AV Kit", icon: "monitor" },
   { id: "eq-laptops", pool: "equipment", label: "Equipment: Laptops", icon: "monitor" },
   { id: "eq-mobility", pool: "equipment", label: "Equipment: Mobility Aids", icon: "tool" },
-  { id: "svc-accountant", pool: "skills", label: "Service: Pro-bono Accountant", icon: "dollar" },
-  { id: "svc-design", pool: "skills", label: "Service: Graphic Design", icon: "pen" },
-  { id: "svc-it", pool: "skills", label: "Service: IT Support", icon: "monitor" },
-  { id: "svc-training", pool: "skills", label: "Service: Training & Facilitation", icon: "users" },
+  { id: "svc-accountant", pool: "services", label: "Service: Pro-bono Accountant", icon: "dollar" },
+  { id: "svc-design", pool: "services", label: "Service: Graphic Design", icon: "pen" },
+  { id: "svc-it", pool: "services", label: "Service: IT Support", icon: "monitor" },
+  { id: "svc-training", pool: "manpower", label: "Manpower: Trainer & Facilitator", icon: "users" },
 ];
 
 const ORGS = [
-  { id: "o1", name: "Harbourlight Family Services", short: "HF", type: "charity", area: "Toa Payoh", lat: 1.3343, lng: 103.8563, trust: 4.8, exchanges: 27, since: "Mar 2026", ipc: true, uen: "S98SS0123A", color: "#A6192E", focus: "Families & caregivers" },
-  { id: "o2", name: "Silver Threads Eldercare", short: "ST", type: "charity", area: "Ang Mo Kio", lat: 1.3691, lng: 103.8454, trust: 4.9, exchanges: 41, since: "Mar 2026", ipc: true, uen: "S03SS0456B", color: "#002B64", focus: "Seniors" },
+  { id: "o1", name: "Harbourlight Family Services", short: "HF", type: "charity", area: "Toa Payoh", lat: 1.3343, lng: 103.8563, trust: 4.8, exchanges: 27, since: "Mar 2026", ipc: true, uen: "S98SS0123A", color: "#C92746", focus: "Families & caregivers" },
+  { id: "o2", name: "Silver Threads Eldercare", short: "ST", type: "charity", area: "Ang Mo Kio", lat: 1.3691, lng: 103.8454, trust: 4.9, exchanges: 41, since: "Mar 2026", ipc: true, uen: "S03SS0456B", color: "#1E3F8A", focus: "Seniors" },
   { id: "o3", name: "Lighthouse Youth Network", short: "LY", type: "charity", area: "Jurong West", lat: 1.3404, lng: 103.7090, trust: 4.7, exchanges: 19, since: "Apr 2026", ipc: true, uen: "T11SS0789C", color: "#F25300", focus: "Youth" },
   { id: "o4", name: "Kampong Meals Collective", short: "KM", type: "charity", area: "Bedok", lat: 1.3236, lng: 103.9273, trust: 4.6, exchanges: 33, since: "Mar 2026", ipc: false, uen: "T15SS0234D", color: "#1E8A5B", focus: "Food support" },
   { id: "o5", name: "Hearts & Hands Disability Services", short: "HH", type: "charity", area: "Bukit Batok", lat: 1.3590, lng: 103.7637, trust: 4.9, exchanges: 22, since: "Apr 2026", ipc: true, uen: "S89SS0567E", color: "#6B3FA0", focus: "Persons with disabilities" },
@@ -166,7 +167,7 @@ const SEED_STATE = {
 
 const PLATFORM_STATS = {
   members: 38, listings: 126, exchanges: 214, savings: 186400, hours: 1340,
-  byPool: { transport: 64, space: 71, equipment: 52, skills: 27 },
+  byPool: { space: 71, manpower: 26, equipment: 92, services: 25 },
   monthly: [
     { m: "May", n: 12 }, { m: "Jun", n: 21 }, { m: "Jul", n: 29 }, { m: "Aug", n: 38 }, { m: "Sep", n: 51 }, { m: "Oct", n: 63 },
   ],

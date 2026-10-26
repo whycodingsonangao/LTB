@@ -1,4 +1,4 @@
-/* Kampung Exchange - clickable mock-up. Vanilla JS, hash routing, mocked data. */
+/* Re.Source - clickable mock-up. Vanilla JS, hash routing, mocked data. */
 (function () {
   "use strict";
 
@@ -44,7 +44,17 @@
     replay: '<polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>',
   };
   const icon = (n, cls = "") => `<svg class="icon ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ""}</svg>`;
-  const LOGO_MARK = `<svg class="logo-mark" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="5" fill="#A6192E"/><path d="M10 15h18l-4.5-4.5M30 25H12l4.5 4.5" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="31.5" cy="8.5" r="3" fill="#F9BB18"/></svg>`;
+  // Brand marks share one 50x40 grid: the arrow ring (blue, currentColor) and the red circle.
+  const RING = '<circle cx="18" cy="22" r="13" fill="none" stroke="currentColor" stroke-width="3.2"/>';
+  const ARROW_RING = '<g fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M29.26 28.5A13 13 0 1 1 24.5 10.74"/><polyline points="23.04 5.28 24.5 10.74 19.04 12.2"/></g>';
+  const RED_CIRCLE = '<circle cx="36" cy="22" r="12" fill="#C92746"/>';
+  const SMILE = '<circle cx="35.2" cy="19.4" r="1.5" fill="#fff"/><circle cx="40.8" cy="19.4" r="1.5" fill="#fff"/><path d="M33.8 24.4q4 3.8 8 0" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/>';
+  const brandMark = (kind, cls) => {
+    const art = { logo: ARROW_RING + RED_CIRCLE + SMILE, register: RED_CIRCLE, request: RED_CIRCLE + RING, return: ARROW_RING + RED_CIRCLE }[kind];
+    return `<svg class="${cls}" viewBox="${kind === "register" ? "23 0 50 40" : "0 0 50 40"}" aria-hidden="true">${art}</svg>`;
+  };
+  const LOGO_MARK = brandMark("logo", "logo-mark");
+  const LOGO = `<a class="logo" href="#/" aria-label="Re.Source home">${LOGO_MARK}<span class="logo-text"><b>Re<i class="logo-dot"></i>Source</b><span>Community resource exchange</span></span></a>`;
 
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const pad = (n) => String(n).padStart(2, "0");
@@ -195,9 +205,9 @@
     const right = isAdmin()
       ? `<span class="badge corp">${icon("shield")} TMT Admin</span>`
       : `<a class="credit-chip" href="#/dashboard/credits" title="Credit balance">${icon("coins")} ${balance()} <span class="lbl">credits</span></a>
-         <a href="#/dashboard/requests" title="${pending} requests awaiting you" style="position:relative">${avatar(me(), true)}${pending ? `<span style="position:absolute;top:-4px;right:-4px;background:var(--maroon);color:#fff;border-radius:99px;font-size:.62rem;padding:0 5px;font-weight:700">${pending}</span>` : ""}</a>`;
+         <a href="#/dashboard/requests" title="${pending} requests awaiting you" style="position:relative">${avatar(me(), true)}${pending ? `<span style="position:absolute;top:-4px;right:-4px;background:var(--red);color:#fff;border-radius:99px;font-size:.62rem;padding:0 5px;font-weight:700">${pending}</span>` : ""}</a>`;
     return `<header class="site-header"><div class="wrap">
-      <a class="logo" href="#/">${LOGO_MARK}<span class="logo-text"><b>Kampung Exchange</b><span>Community resource exchange</span></span></a>
+      ${LOGO}
       <nav class="nav" id="nav">${links.map(([k, href, label]) => `<a href="${href}" class="${k === active ? "active" : ""}">${label}</a>`).join("")}</nav>
       <div class="header-cta">${right}</div>
       <button class="menu-toggle" data-action="menu" aria-label="Menu">&#9776;</button>
@@ -207,13 +217,13 @@
   function footer() {
     return `<footer class="site-footer"><div class="wrap">
       <div class="footer-grid">
-        <div><a class="logo" href="#/">${LOGO_MARK}<span class="logo-text"><b>Kampung Exchange</b><span>Community resource exchange</span></span></a>
-          <p>A members-only exchange where Singapore's community well-being organisations share idle vans, spaces, equipment and skills. A pilot coordinated by TMT.</p></div>
+        <div>${LOGO}
+          <p>Re.Source is a members-only exchange where Singapore's community well-being organisations share idle spaces, manpower, equipment and services. A pilot managed by TMT.</p></div>
         <div><h4>Exchange</h4><a href="#/browse">Browse resources</a><a href="#/new">List a resource</a><a href="#/?s=how">How credits work</a></div>
-        <div><h4>Pools</h4>${Object.values(POOLS).map((p) => `<a href="#/browse?pool=${p.id}">${p.label}</a>`).join("")}</div>
+        <div><h4>Resources</h4>${Object.values(POOLS).map((p) => `<a href="#/browse?pool=${p.id}">${p.label}</a>`).join("")}</div>
         <div><h4>Join</h4><a href="#/join">Apply as a charity</a><a href="#/?s=partners">Corporate partners</a><a href="#/admin">TMT admin</a></div>
       </div>
-      <div class="footer-bottom"><span>&copy; 2026 Kampung Exchange (mock-up). LTB Group 6 Wolverine.</span><span>Privacy Policy &nbsp;·&nbsp; Terms of Use &nbsp;·&nbsp; Community Guidelines</span></div>
+      <div class="footer-bottom"><span>&copy; 2026 Re.Source (mock-up). LTB Group 6 Wolverine.</span><span>Privacy Policy &nbsp;·&nbsp; Terms of Use &nbsp;·&nbsp; Community Guidelines</span></div>
     </div></footer>`;
   }
 
@@ -253,12 +263,12 @@
         <div class="xv-eyebrow xv-a fade" ${d(0.1)}>Tuesday, 2:00pm</div>
         <div class="xv-row">
           <div class="xv-card xv-a left" ${d(0.4)}>
-            <div class="xv-ic" style="background:var(--navy-tint);color:var(--navy)">${icon("truck")}</div>
+            <div class="xv-ic" style="background:var(--blue-tint);color:var(--blue)">${icon("truck")}</div>
             <b>${silver.name}</b><span class="xv-muted">14-seater van · parked since 1pm</span>
             <span class="badge neutral xv-idle" style="align-self:flex-start">Idle · 0 trips this afternoon</span>
           </div>
           <div class="xv-card xv-a right" ${d(1.6)}>
-            <div class="xv-ic" style="background:var(--orange-tint);color:#C24400">${icon("users")}</div>
+            <div class="xv-ic" style="background:var(--red-tint);color:var(--red)">${icon("users")}</div>
             <b>${light.name}</b><span class="xv-muted">Needs a van for Thursday's youth excursion</span>
             <span><span class="xv-big" style="font-size:2.2em">S$180</span> <span class="xv-muted">rental quote</span></span>
           </div>
@@ -283,9 +293,9 @@
               <span class="xv-a fade" ${d(2.5)}>within</span> <span data-typed="10 km" data-at="2.7" data-cps="14"></span></div>
             <div class="xv-ping xv-a pop" ${d(3.3)}>${icon("zap")} 3 matches within 10 km</div>
             <div class="xv-results">
-              <div class="xv-res pool-transport xv-a" ${d(3.6)}><div class="xv-ic">${icon("truck")}</div><b>14-seater van</b><span class="xv-muted">${silver.name} · 4.1 km</span><span><b>30 credits</b> · ★ 5.0</span></div>
-              <div class="xv-res pool-transport xv-a" ${d(3.85)}><div class="xv-ic">${icon("users")}</div><b>Volunteer drivers</b><span class="xv-muted">Swiftline Logistics · 4.8 km</span><span><b style="color:var(--green)">Free</b> · corporate gift</span></div>
-              <div class="xv-res pool-transport xv-a" ${d(4.1)}><div class="xv-ic">${icon("truck")}</div><b>Tail-lift truck</b><span class="xv-muted">Swiftline Logistics · 4.8 km</span><span><b style="color:var(--green)">Free</b> · Saturdays</span></div>
+              <div class="xv-res pool-equipment xv-a" ${d(3.6)}><div class="xv-ic">${icon("truck")}</div><b>14-seater van</b><span class="xv-muted">${silver.name} · 4.1 km</span><span><b>30 credits</b> · ★ 5.0</span></div>
+              <div class="xv-res pool-manpower xv-a" ${d(3.85)}><div class="xv-ic">${icon("users")}</div><b>Volunteer drivers</b><span class="xv-muted">Swiftline Logistics · 4.8 km</span><span><b style="color:var(--green)">Free</b> · corporate gift</span></div>
+              <div class="xv-res pool-equipment xv-a" ${d(4.1)}><div class="xv-ic">${icon("truck")}</div><b>Tail-lift truck</b><span class="xv-muted">Swiftline Logistics · 4.8 km</span><span><b style="color:var(--green)">Free</b> · Saturdays</span></div>
             </div>
           </div>
         </div>
@@ -322,7 +332,7 @@
       { label: "Get started", dur: 5, cls: "xv-cta", html: `
         <div class="xv-a pop" ${d(0.2)}>${LOGO_MARK}</div>
         <h3 class="xv-h xv-a" ${d(0.6)}>Share what you have.<br><strong>Find what you need.</strong></h3>
-        <div class="xv-triad xv-a" ${d(1.2)}><span>List.</span><span>Link.</span><span>Lend.</span></div>
+        <div class="xv-triad xv-a" ${d(1.2)}><span>Register.</span><span>Request.</span><span>Return.</span></div>
         <div class="xv-a" ${d(1.8)} style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center"><a class="btn light" href="#/browse">Browse resources</a><a class="btn" href="#/join">Join the pilot</a></div>` },
     ];
   }
@@ -431,7 +441,7 @@
     <section class="hero"><div class="wrap">
       <div>
         <span class="eyebrow">For Singapore's community well-being sector</span>
-        <h1>Share what you have.<br><strong>Find what you need.</strong></h1>
+        <h1><strong>Share</strong> what ${icon("truck")} you have.<br><strong>Find</strong> ${icon("tool")} what you need.</h1>
         <p class="lead">A members-only exchange where verified charities lend each other idle vans, rooms, equipment and skilled volunteers. No phone tag. No committee wait.</p>
         <form class="search-card" id="hero-search">
           <div class="search-sentence">
@@ -444,11 +454,11 @@
         </form>
       </div>
       <div class="hero-collage" aria-hidden="true">
-        <div class="float-card f1 pool-transport"><div class="fc-icon" style="background:var(--navy-tint);color:var(--navy)">${icon("truck")}</div><div><b>Wheelchair van</b><span>Free Mon · Wed · Fri mornings</span></div></div>
-        <div class="float-card f2 pool-space"><div class="fc-icon" style="background:var(--maroon-tint);color:var(--maroon)">${icon("home")}</div><div><b>Training room, 30 pax</b><span>Toa Payoh · weekday evenings</span></div></div>
+        <div class="float-card f1 pool-equipment"><div class="fc-icon">${icon("truck")}</div><div><b>Wheelchair van</b><span>Free Mon · Wed · Fri mornings</span></div></div>
+        <div class="float-card f2 pool-space"><div class="fc-icon">${icon("home")}</div><div><b>Training room, 30 pax</b><span>Toa Payoh · weekday evenings</span></div></div>
         <div class="match-ping">${icon("zap")} 3 matches within 10 km</div>
-        <div class="float-card f3"><div class="fc-icon" style="background:var(--orange-tint);color:#C24400">${icon("grid")}</div><div><b>80 stackable chairs</b><span>Instant book · 5 credits</span></div></div>
-        <div class="float-card f4"><div class="fc-icon" style="background:var(--yellow-tint);color:#8A6100">${icon("pen")}</div><div><b>Pro-bono designer</b><span>10 hrs/month available</span></div></div>
+        <div class="float-card f3 pool-manpower"><div class="fc-icon">${icon("users")}</div><div><b>Volunteer drivers</b><span>Weekends · corporate gift</span></div></div>
+        <div class="float-card f4 pool-services"><div class="fc-icon">${icon("pen")}</div><div><b>Pro-bono designer</b><span>10 hrs/month available</span></div></div>
       </div>
     </div></section>
 
@@ -459,27 +469,27 @@
       <div class="stat"><b>${money(PLATFORM_STATS.savings)}</b><span>estimated costs saved by charities</span></div>
     </div></section>
 
-    <section class="section soft" id="watch"><div class="wrap">
+    <section class="section" id="watch"><div class="wrap">
       <div class="section-head center"><span class="eyebrow">See it in action</span><h2>From idle van to <strong>shared resource</strong></h2>
         <p class="muted">How charities find, book and rate each other's resources, in under a minute.</p></div>
       ${explainerHTML()}
     </div></section>
 
-    <section class="section"><div class="wrap">
-      <div class="section-head"><span class="eyebrow">What we do</span><h2>Turning idle resources into <strong>community impact</strong></h2>
-        <p class="muted">Charities across Singapore own vans that sit parked, rooms that sit empty and volunteers with hours to spare, while other charities pay full price for the same things. We connect the two.</p></div>
-      <div class="triad">
-        <div><div class="num">01</div><h3><strong>List</strong> your idle capacity</h3><p class="muted">Post a van that's free on Tuesday afternoons, a room that's empty after 7pm or a volunteer with five spare hours. Listing takes about two minutes.</p></div>
-        <div><div class="num">02</div><h3><strong>Link</strong> with a match instantly</h3><p class="muted">Search "I need X on this date within Y km" and see matches straight away, sorted by distance and trust score.</p></div>
-        <div><div class="num">03</div><h3><strong>Lend</strong> and earn credits</h3><p class="muted">Every exchange is recorded on a shared ledger. Earn credits when you lend and spend them when you borrow, with no cash needed.</p></div>
-      </div>
+    <section class="section soft"><div class="wrap">
+      <div class="section-head"><span class="eyebrow">Core framework</span><h2>Register. Request. <strong>Return.</strong></h2>
+        <p class="muted">Charities across Singapore own vans that sit parked, rooms that sit empty and volunteers with hours to spare, while other charities pay full price for the same things. Re.Source keeps those resources moving.</p></div>
+      <ol class="framework">
+        <li>${brandMark("register", "fw-mark")}<span class="fw-num">01</span><h3>Register</h3><p>Verified organisations register and contribute their available or underutilised resources.</p></li>
+        <li>${brandMark("request", "fw-mark")}<span class="fw-num">02</span><h3>Request</h3><p>The platform, managed by TMT, matches available resources with organisations that need them.</p></li>
+        <li>${brandMark("return", "fw-mark")}<span class="fw-num">03</span><h3>Return</h3><p>Resources are shared, reused and returned to the Re.Source network for others to access.</p></li>
+      </ol>
     </div></section>
 
-    <section class="section soft"><div class="wrap">
-      <div class="section-head"><span class="eyebrow">Resource pools</span><h2>Four ways to <strong>share</strong></h2></div>
+    <section class="section sky"><div class="wrap">
+      <div class="section-head"><span class="eyebrow">More resources for less waste</span><h2>Four kinds of resources to <strong>share</strong></h2></div>
       <div class="pools">${Object.values(POOLS).map((p) => `
         <a class="pool-card pool-${p.id}" href="#/browse?pool=${p.id}">
-          <div class="pool-icon">${icon(p.icon)}</div><h3>${p.label}</h3><p class="small muted">${p.blurb}</p>
+          <div class="pool-icon">${icon(p.icon)}</div><h3>${p.label}</h3><p class="pool-sub">${p.sub}</p><p class="small muted">${p.blurb}</p>
           <ul>${p.examples.map((e) => `<li>${e}</li>`).join("")}</ul>
           <span class="more">Browse ${allListings().filter((l) => poolOf(l) === p.id).length} listings ${icon("arrow")}</span></a>`).join("")}
       </div>
@@ -495,8 +505,8 @@
         <div class="step"><h3>Rate each other</h3><p>After every exchange, both sides rate the other. Was it as described? Was it returned clean? Ratings build each organisation's trust score.</p></div>
       </div>
       <div class="mode-compare">
-        <div class="mode-box"><div class="mb-icon" style="background:var(--yellow);color:var(--slate)">${icon("zap")}</div><div><h3>Instant Book</h3><p class="small muted" style="margin:0">For everyday, low-risk items such as stackable chairs, hot desks, PA kits and wheelchairs. Confirmed immediately, with credits deducted on booking.</p></div></div>
-        <div class="mode-box"><div class="mb-icon" style="background:var(--maroon-tint);color:var(--maroon)">${icon("send")}</div><div><h3>Request to Book</h3><p class="small muted" style="margin:0">For high-value assets such as vans, kitchens and halls. The owner reviews your request and note, and credits are deducted only once they approve.</p></div></div>
+        <div class="mode-box"><div class="mb-icon" style="background:var(--blue-tint);color:var(--blue)">${icon("zap")}</div><div><h3>Instant Book</h3><p class="small muted" style="margin:0">For everyday, low-risk items such as stackable chairs, hot desks, PA kits and wheelchairs. Confirmed immediately, with credits deducted on booking.</p></div></div>
+        <div class="mode-box"><div class="mb-icon" style="background:var(--red-tint);color:var(--red)">${icon("send")}</div><div><h3>Request to Book</h3><p class="small muted" style="margin:0">For high-value assets such as vans, kitchens and halls. The owner reviews your request and note, and credits are deducted only once they approve.</p></div></div>
       </div>
     </div></section>
 
@@ -557,14 +567,14 @@
     const html = `
     <div class="page-head"><div class="wrap">
       <div class="crumbs"><a href="#/">Home</a> / Browse resources</div>
-      <h1>Browse <strong style="font-weight:700;color:var(--maroon)">resources</strong></h1>
+      <h1>Browse <strong style="font-weight:700;color:var(--red)">resources</strong></h1>
       <p class="muted" style="margin:0">Showing distances from ${esc(me().name)} in ${esc(me().area)}.</p>
     </div></div>
     <div class="wrap"><div class="browse-layout">
       <aside class="filters" id="filters">
         <h4>Search</h4>
         <input type="text" id="f-q" placeholder="e.g. van, projector, kitchen" value="${esc(f.q)}">
-        <h4>Resource pool</h4>
+        <h4>Resource type</h4>
         <div class="chips" id="f-pool">
           <button class="chip ${!f.pool ? "on" : ""}" data-pool="">All</button>
           ${Object.values(POOLS).map((p) => `<button class="chip ${f.pool === p.id ? "on" : ""}" data-pool="${p.id}">${p.short}</button>`).join("")}
@@ -832,7 +842,7 @@
       return `<div class="row-item pool-${pool}"><div class="ri-icon">${icon(catOf(l).icon)}</div>
         <div class="ri-main"><b><a href="#/listing/${l.id}" style="color:inherit">${esc(l.title)}</a></b>
           <span>${side === "in" ? "Requested by" : "From"} ${esc(other.name)} · ${fmtDate(b.date)} · ${b.units} ${esc(l.unit)}${b.units > 1 ? "s" : ""} · ${l.credits ? l.credits * b.units + " credits" : "Free"}</span>
-          ${b.note ? `<div class="small" style="margin-top:4px;color:var(--slate)">"${esc(b.note)}"</div>` : ""}</div>
+          ${b.note ? `<div class="small" style="margin-top:4px;color:var(--blue)">"${esc(b.note)}"</div>` : ""}</div>
         <div class="ri-actions">${statusBadge(b.status)} ${actions}</div></div>`;
     };
 
@@ -840,8 +850,8 @@
     if (tab === "overview") {
       body = `
         <div class="kpis">
-          <div class="kpi" style="--kc:var(--yellow)"><span>Credit balance</span><b>${balance()}</b><small>credits available</small></div>
-          <div class="kpi" style="--kc:var(--navy)"><span>Upcoming</span><b>${upcoming.length}</b><small>bookings and pending requests</small></div>
+          <div class="kpi" style="--kc:var(--blue-tint)"><span>Credit balance</span><b>${balance()}</b><small>credits available</small></div>
+          <div class="kpi" style="--kc:var(--blue)"><span>Upcoming</span><b>${upcoming.length}</b><small>bookings and pending requests</small></div>
           <div class="kpi"><span>Needs your action</span><b>${pendingIn.length + toRate.length}</b><small>approvals and ratings</small></div>
           <div class="kpi" style="--kc:var(--green)"><span>Estimated savings</span><b>${money(saved)}</b><small>vs. renting at market rates</small></div>
         </div>
@@ -892,10 +902,10 @@
       const earned = state.ledger.filter((e) => e.amount > 0).reduce((s, e) => s + e.amount, 0);
       const spent = -state.ledger.filter((e) => e.amount < 0).reduce((s, e) => s + e.amount, 0);
       body = `<div class="kpis">
-          <div class="kpi" style="--kc:var(--yellow)"><span>Balance</span><b>${balance()}</b><small>credits</small></div>
+          <div class="kpi" style="--kc:var(--blue-tint)"><span>Balance</span><b>${balance()}</b><small>credits</small></div>
           <div class="kpi" style="--kc:var(--green)"><span>Earned</span><b>${earned}</b><small>incl. 100 welcome credits</small></div>
           <div class="kpi"><span>Spent</span><b>${spent}</b><small>on borrowed resources</small></div>
-          <div class="kpi" style="--kc:var(--navy)"><span>Lend:borrow ratio</span><b>${spent ? (earned - 100) / spent >= 1 ? "Net lender" : "Net borrower" : "-"}</b><small>keeps the exchange balanced</small></div>
+          <div class="kpi" style="--kc:var(--blue)"><span>Lend:borrow ratio</span><b>${spent ? (earned - 100) / spent >= 1 ? "Net lender" : "Net borrower" : "-"}</b><small>keeps the exchange balanced</small></div>
         </div>
         <div class="two-col">
           <div class="panel"><div class="panel-head"><h3>Credit ledger</h3><button class="btn sm ghost" data-action="export">${icon("file")} Export for grant report</button></div>
@@ -957,12 +967,12 @@
     return {
       html: `
       <div class="page-head"><div class="wrap"><div class="crumbs"><a href="#/">Home</a> / <a href="#/dashboard">Dashboard</a> / New listing</div>
-        <h1>List a <strong style="font-weight:700;color:var(--maroon)">resource</strong></h1><p class="muted" style="margin:0">Takes about two minutes. Your listing goes live straight away because ${esc(me().name)} is already verified.</p></div></div>
+        <h1>List a <strong style="font-weight:700;color:var(--red)">resource</strong></h1><p class="muted" style="margin:0">Takes about two minutes. Your listing goes live straight away because ${esc(me().name)} is already verified.</p></div></div>
       <div class="wrap"><div class="form-layout">
         <form class="form-card" id="new-form">
           <fieldset><legend><span class="n">1</span> What are you sharing?</legend>
             <div class="grid-2">
-              <div class="field"><label>Resource pool</label><select name="pool" id="n-pool">${Object.values(POOLS).map((p) => `<option value="${p.id}">${p.label}</option>`).join("")}</select></div>
+              <div class="field"><label>Resource type</label><select name="pool" id="n-pool">${Object.values(POOLS).map((p) => `<option value="${p.id}">${p.label}</option>`).join("")}</select></div>
               <div class="field"><label>Category <span class="hint">(standardised for matching)</span></label><select name="cat" id="n-cat"></select></div>
             </div>
             <div class="field"><label for="n-title">Listing title</label><input type="text" id="n-title" name="title" required placeholder="e.g. 14-seater van, Tuesday afternoons"></div>
@@ -1043,7 +1053,7 @@
     return {
       html: `
       <div class="page-head"><div class="wrap"><div class="crumbs"><a href="#/">Home</a> / Join</div>
-        <h1>Join the <strong style="font-weight:700;color:var(--maroon)">pilot</strong></h1><p class="muted" style="margin:0">During the pilot, membership is open to registered charities in Singapore that work on community well-being.</p></div></div>
+        <h1>Join the <strong style="font-weight:700;color:var(--red)">pilot</strong></h1><p class="muted" style="margin:0">During the pilot, membership is open to registered charities in Singapore that work on community well-being.</p></div></div>
       <div class="wrap"><div class="form-layout">
         <form class="form-card" id="join-form">
           <fieldset><legend><span class="n">1</span> Organisation details</legend>
@@ -1110,20 +1120,20 @@
     return {
       html: `
       <section class="dash-head"><div class="wrap" style="padding-bottom:28px">
-        <span class="eyebrow" style="color:var(--yellow)">TMT Admin console</span><h1>Platform overview</h1>
+        <span class="eyebrow" style="color:var(--blue-tint)">TMT Admin console</span><h1>Platform overview</h1>
         <span class="muted">Verify members, keep an eye on trust and track impact. The goal is light-touch oversight: members deal with each other directly.</span>
       </div></section>
       <div class="wrap dash-body">
         <div class="kpis">
           <div class="kpi"><span>Verified members</span><b>${s.members + approved.length}</b><small>${state.pendingOrgs.length} awaiting verification</small></div>
-          <div class="kpi" style="--kc:var(--navy)"><span>Live listings</span><b>${s.listings + state.extraListings.length}</b><small>across 4 pools</small></div>
-          <div class="kpi" style="--kc:var(--yellow)"><span>Exchanges completed</span><b>${s.exchanges}</b><small>+${s.monthly.at(-1).n} this month</small></div>
+          <div class="kpi" style="--kc:var(--blue)"><span>Live listings</span><b>${s.listings + state.extraListings.length}</b><small>across 4 resource types</small></div>
+          <div class="kpi" style="--kc:var(--blue-tint)"><span>Exchanges completed</span><b>${s.exchanges}</b><small>+${s.monthly.at(-1).n} this month</small></div>
           <div class="kpi" style="--kc:var(--green)"><span>Est. sector savings</span><b>${money(s.savings)}</b><small>${s.hours.toLocaleString()} volunteer hours shared</small></div>
         </div>
         <div class="two-col">
           <div>
             <div class="panel"><div class="panel-head"><h3>Verification queue (${state.pendingOrgs.length})</h3><span class="small muted">Target turnaround: 3 working days</span></div>
-              ${state.pendingOrgs.map((p) => `<div class="row-item"><div class="avatar sm" style="background:var(--slate-2)">${esc(p.name.split(" ").map((w) => w[0]).slice(0, 2).join(""))}</div>
+              ${state.pendingOrgs.map((p) => `<div class="row-item"><div class="avatar sm" style="background:var(--blue-dark)">${esc(p.name.split(" ").map((w) => w[0]).slice(0, 2).join(""))}</div>
                 <div class="ri-main"><b>${esc(p.name)}</b><span>UEN ${esc(p.uen)} · Charity no. ${esc(p.charityNo)} · ${p.ipc ? "IPC" : "Non-IPC"} · ${esc(p.sector)} · ${esc(p.area)}</span>
                   <div class="small" style="margin-top:4px">${esc(p.contact)} · ${esc(p.email)} · submitted ${fmtDate(p.submitted, false)}</div>
                   <div class="small muted" style="margin-top:4px;display:flex;gap:10px;flex-wrap:wrap">${p.docs.map((d) => `<span>${icon("file")} ${esc(d)}</span>`).join("")}</div>
@@ -1141,7 +1151,7 @@
               </tbody></table></div></div>
           </div>
           <div>
-            <div class="panel"><div class="panel-head"><h3>Exchanges by pool</h3></div><div class="panel-body"><div class="bars">
+            <div class="panel"><div class="panel-head"><h3>Exchanges by resource type</h3></div><div class="panel-body"><div class="bars">
               ${Object.entries(s.byPool).map(([k, v]) => `<div class="bar-row pool-${k}"><span>${POOLS[k].short}</span><div class="bar-track"><div class="bar-fill" style="width:${(v / maxPool) * 100}%"></div></div><b>${v}</b></div>`).join("")}
             </div></div></div>
             <div class="panel"><div class="panel-head"><h3>Monthly exchanges</h3><span class="small muted">Pilot launched Mar 2026</span></div><div class="panel-body"><div class="bars">
@@ -1149,7 +1159,7 @@
             </div></div></div>
             <div class="panel"><div class="panel-head"><h3>Members</h3><span class="small muted">by trust score</span></div>
               ${approved.map((o) => `<div class="row-item">${avatar(o, true)}<div class="ri-main"><b>${esc(o.name)}</b><span>Just verified · ${esc(o.area)}</span></div><span class="badge ok">New</span></div>`).join("")}
-              ${ORGS.slice().sort((a, b) => b.trust - a.trust).map((o) => `<div class="row-item">${avatar(o, true)}<div class="ri-main"><b><a href="#/org/${o.id}" style="color:inherit">${esc(o.name)}</a></b><span>${o.type === "corporate" ? "Corporate partner" : esc(o.focus)} · ${o.exchanges} exchanges</span></div><b style="color:var(--maroon)">${o.trust.toFixed(1)}</b></div>`).join("")}
+              ${ORGS.slice().sort((a, b) => b.trust - a.trust).map((o) => `<div class="row-item">${avatar(o, true)}<div class="ri-main"><b><a href="#/org/${o.id}" style="color:inherit">${esc(o.name)}</a></b><span>${o.type === "corporate" ? "Corporate partner" : esc(o.focus)} · ${o.exchanges} exchanges</span></div><b style="color:var(--red)">${o.trust.toFixed(1)}</b></div>`).join("")}
             </div>
           </div>
         </div>

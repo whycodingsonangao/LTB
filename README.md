@@ -1,6 +1,6 @@
-# Kampung Exchange (mock-up)
+# Re.Source (mock-up)
 
-Clickable mock-up of a members-only resource-sharing platform for Singapore's community well-being charities. Built for LTB (COR-MGMT1301) Group 6 Wolverine. The visual language follows [majurity.sg](https://www.majurity.sg/).
+Clickable mock-up of a members-only resource-sharing platform for Singapore's community well-being charities. Built for LTB (COR-MGMT1301) Group 6 Wolverine. The visual language follows the Re.Source brand board (`Resource brand inspiration.jpg`): primary red `#C92746`, primary blue `#1E3F8A`, accent red `#FFD9D9`, accent blue `#C4E3FB`, cream `#F2F1ED`, set in Figtree.
 
 **All data is mocked.** Organisations, listings, reviews and figures are fictional.
 
@@ -14,8 +14,8 @@ Demo state (bookings, credits, new listings) is saved in your browser's localSto
 
 | Page | Route | Shows |
 |---|---|---|
-| Home | `#/` | Hero search ("I need X on date within Y km"), impact stats, List/Link/Lend, 4 resource pools, how it works, trust model |
-| Browse | `#/browse` | Filters (pool, category, date, distance, instant-book, free), sort, live match count |
+| Home | `#/` | Hero search ("I need X on date within Y km"), impact stats, Register/Request/Return framework, 4 resource types (Spaces, Manpower, Equipment, Services), how it works, trust model |
+| Browse | `#/browse` | Filters (resource type, category, date, distance, instant-book, free), sort, live match count |
 | Listing | `#/listing/L1` | Standardised category, weekly availability, house rules, owner trust score, reviews, booking panel (Instant vs Request to Book, credit maths) |
 | Organisation | `#/org/o2` | Member profile, listings and reviews |
 | Dashboard | `#/dashboard` | Overview, incoming requests (approve/decline), my bookings, my listings (pause/resume), credit ledger |
