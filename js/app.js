@@ -4,8 +4,8 @@
 
   // ---------------------------------------------------------------- helpers
   const app = document.getElementById("app");
-  // v2: seed dates are now relative to today, so state saved by v1 (fixed dates) is discarded.
-  const STORE_KEY = "resource-demo-state-v2";
+  // v3: adds the donor pool, payouts and a public-user ledger, so state saved by v2 is discarded.
+  const STORE_KEY = "resource-demo-state-v3";
   const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -78,18 +78,25 @@
   function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* ignore */ } }
   function resetState() { try { localStorage.removeItem(STORE_KEY); } catch (e) { /* ignore */ } state = structuredClone(SEED_STATE); }
 
-  const me = () => ORGS.find((o) => o.id === CURRENT_ORG_ID);
   const isAdmin = () => state.role === "admin";
-  const getOrg = (id) => ORGS.find((o) => o.id === id) || (state.approvedOrgs || []).find((o) => o.id === id);
+  const isDonor = () => state.role === "donor";
+  const isPublic = () => state.role === "public";
+  const charityOrg = () => ORGS.find((o) => o.id === CURRENT_ORG_ID);
+  const me = () => (isPublic() ? PUBLIC_USER : isDonor() ? ORGS.find((o) => o.id === DONOR_ORG_ID) : charityOrg());
+  const curId = () => me().id;
+  const ledger = () => (isPublic() ? state.publicLedger : state.ledger);
+  const getOrg = (id) => ORGS.find((o) => o.id === id) || (id === PUBLIC_USER.id ? PUBLIC_USER : null) || (state.approvedOrgs || []).find((o) => o.id === id);
   const allListings = () => LISTINGS.concat(state.extraListings);
   const getListing = (id) => allListings().find((l) => l.id === id);
   const catOf = (l) => CATEGORIES.find((c) => c.id === l.cat);
   const poolOf = (l) => catOf(l).pool;
-  const isMine = (l) => l.orgId === CURRENT_ORG_ID;
+  const isMine = (l) => l.orgId === curId();
   const listingStatus = (l) => (isMine(l) ? state.myListingStatus[l.id] || "live" : "live");
   const reviewsFor = (id) => REVIEWS.concat(state.extraReviews).filter((r) => r.listingId === id).sort((a, b) => b.date.localeCompare(a.date));
   const avgRating = (id) => { const r = reviewsFor(id); return r.length ? r.reduce((s, x) => s + x.stars, 0) / r.length : 0; };
-  const balance = () => state.ledger.reduce((s, e) => s + e.amount, 0);
+  const balance = () => ledger().reduce((s, e) => s + e.amount, 0);
+  const marketPct = (l) => (l.value && l.credits ? Math.round((l.credits * CREDIT_VALUE * 100) / l.value) : 0);
+  const poolLabel = (d) => (d === "pool" || !POOLS[d] ? "the common pool" : `${POOLS[d].label} (earmarked)`);
 
   function distanceKm(a, b) {
     const R = 6371, toRad = (x) => (x * Math.PI) / 180;
@@ -112,7 +119,7 @@
   };
   const priceHTML = (l, big = false) => l.credits === 0
     ? `<span class="price free">Free</span>${big ? ' <span class="small muted">corporate gift</span>' : ""}`
-    : `<span class="price">${l.credits} credits</span> <span class="small muted">/ ${esc(l.unit)}</span>`;
+    : `<span class="price">${l.credits} credits</span> <span class="small muted">/ ${esc(l.unit)}</span> <span class="mkt" title="Credits are set as a share of the market rate (TMT standard: 75%)">${marketPct(l)}% of market</span>`;
 
   function stars(n, size = "") {
     let s = `<span class="stars ${size}">`;
@@ -177,6 +184,7 @@
     else if (p0 === "dashboard") view = viewDashboard(p1 || "overview");
     else if (p0 === "new") view = viewNewListing();
     else if (p0 === "join") view = viewJoin();
+    else if (p0 === "donate") view = viewDonate();
     else if (p0 === "admin") view = viewAdmin();
     else view = { html: `<div class="wrap section"><div class="empty">${icon("search")}<h3>Page not found</h3><a class="btn" href="#/">Back to home</a></div></div>` };
 
@@ -193,7 +201,9 @@
       <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
         <label>Viewing as
           <select id="role-switch" aria-label="Switch demo role">
-            <option value="charity" ${!isAdmin() ? "selected" : ""}>${esc(me().name)} (charity member)</option>
+            <option value="charity" ${state.role === "charity" ? "selected" : ""}>${esc(charityOrg().name)} (charity member)</option>
+            <option value="donor" ${isDonor() ? "selected" : ""}>${esc(ORGS.find((o) => o.id === DONOR_ORG_ID).name)} (donor)</option>
+            <option value="public" ${isPublic() ? "selected" : ""}>${esc(PUBLIC_USER.name)} (member of the public)</option>
             <option value="admin" ${isAdmin() ? "selected" : ""}>TMT Admin (platform operator)</option>
           </select></label>
         <button class="link-btn" data-action="reset">Reset demo data</button>
@@ -203,10 +213,14 @@
   function header(active) {
     const links = isAdmin()
       ? [["home", "#/", "Home"], ["browse", "#/browse", "Browse resources"], ["admin", "#/admin", "Admin console"]]
-      : [["home", "#/", "Home"], ["browse", "#/browse", "Browse resources"], ["how", "#/?s=how", "How it works"], ["new", "#/new", "List a resource"], ["dashboard", "#/dashboard", "My dashboard"]];
+      : [["home", "#/", "Home"], ["browse", "#/browse", "Browse resources"], ["how", "#/?s=how", "How it works"], ["donate", "#/donate", "Fund credits"]]
+        .concat(state.role === "charity" ? [["new", "#/new", "List a resource"]] : [])
+        .concat(isDonor() ? [] : [["dashboard", "#/dashboard", "My dashboard"]]);
     const pending = state.bookings.filter((b) => b.status === "pending" && isMine(getListing(b.listingId))).length;
     const right = isAdmin()
       ? `<span class="badge corp">${icon("shield")} TMT Admin</span>`
+      : isDonor()
+      ? `<a class="btn sm" href="#/donate">${icon("heart")} Fund credits</a>`
       : `<a class="credit-chip" href="#/dashboard/credits" title="Credit balance">${icon("coins")} ${balance()} <span class="lbl">credits</span></a>
          <a href="#/dashboard/requests" title="${pending} requests awaiting you" style="position:relative">${avatar(me(), true)}${pending ? `<span style="position:absolute;top:-4px;right:-4px;background:var(--red);color:#fff;border-radius:99px;font-size:.62rem;padding:0 5px;font-weight:700">${pending}</span>` : ""}</a>`;
     return `<header class="site-header"><div class="wrap">
@@ -222,7 +236,7 @@
       <div class="footer-grid">
         <div>${LOGO}
           <p>Re.Source is a members-only exchange where Singapore's community well-being organisations share idle spaces, manpower, equipment and services. A pilot managed by TMT.</p></div>
-        <div><h4>Exchange</h4><a href="#/browse">Browse resources</a><a href="#/new">List a resource</a><a href="#/?s=how">How credits work</a></div>
+        <div><h4>Exchange</h4><a href="#/browse">Browse resources</a><a href="#/new">List a resource</a><a href="#/?s=how">How credits work</a><a href="#/donate">Fund credits (donors)</a></div>
         <div><h4>Resources</h4>${Object.values(POOLS).map((p) => `<a href="#/browse?pool=${p.id}">${p.label}</a>`).join("")}</div>
         <div><h4>Join</h4><a href="#/join">Apply as a charity</a><a href="#/?s=partners">Corporate partners</a><a href="#/admin">TMT admin</a></div>
       </div>
@@ -262,6 +276,7 @@
     const d = (s) => `style="--d:${s}s"`;
     const starRow = (from) => `<div class="xv-stars">${[0, 1, 2, 3, 4].map((i) => `<span style="--d:${(from + i * 0.15).toFixed(2)}s">${icon("star")}</span>`).join("")}</div>`;
     const silver = getOrg("o2"), light = getOrg("o3");
+    const vanCr = getListing("L1").credits;
     // The story's Thursday excursion: the next Thursday after today, so the date never looks stale.
     const tomorrow = parseISO(todayISO()); tomorrow.setDate(tomorrow.getDate() + 1);
     const thu = parseISO(nextAvailable({ days: [4] }, toISO(tomorrow)));
@@ -301,7 +316,7 @@
               <span class="xv-a fade" ${d(2.5)}>within</span> <span data-typed="10 km" data-at="2.7" data-cps="14"></span></div>
             <div class="xv-ping xv-a pop" ${d(3.3)}>${icon("zap")} 3 matches within 10 km</div>
             <div class="xv-results">
-              <div class="xv-res pool-equipment xv-a" ${d(3.6)}><div class="xv-ic">${icon("truck")}</div><b>14-seater van</b><span class="xv-muted">${silver.name} · 4.1 km</span><span><b>30 credits</b> · ★ 5.0</span></div>
+              <div class="xv-res pool-equipment xv-a" ${d(3.6)}><div class="xv-ic">${icon("truck")}</div><b>14-seater van</b><span class="xv-muted">${silver.name} · 4.1 km</span><span><b>${vanCr} credits</b> · ★ 5.0</span></div>
               <div class="xv-res pool-manpower xv-a" ${d(3.85)}><div class="xv-ic">${icon("users")}</div><b>Volunteer drivers</b><span class="xv-muted">Swiftline Logistics · 4.8 km</span><span><b style="color:var(--green)">Free</b> · corporate gift</span></div>
               <div class="xv-res pool-equipment xv-a" ${d(4.1)}><div class="xv-ic">${icon("truck")}</div><b>Tail-lift truck</b><span class="xv-muted">Swiftline Logistics · 4.8 km</span><span><b style="color:var(--green)">Free</b> · Saturdays</span></div>
             </div>
@@ -311,15 +326,15 @@
       { label: "Book", dur: 8, html: `
         <h3 class="xv-h xv-a" ${d(0.2)}>Request. Approve. <strong>Done.</strong></h3>
         <div class="xv-orgs">
-          <div class="xv-org xv-a left" ${d(0.4)}>${avatar(light)}<div><b>${light.name}</b><div class="xv-delta neg xv-a pop" ${d(5.4)}>−30 credits</div></div></div>
+          <div class="xv-org xv-a left" ${d(0.4)}>${avatar(light)}<div><b>${light.name}</b><div class="xv-delta neg xv-a pop" ${d(5.4)}>−${vanCr} credits</div></div></div>
           <div class="xv-track xv-a fade" ${d(0.6)}><div class="xv-line"></div>
             <div class="xv-mover go" style="--d:1s;--t:1.6s"><span class="xv-tag">${icon("send")} Request · ${thuLabel.replace(",", "")}</span></div>
             <div class="xv-mover go back" style="--d:2.8s;--t:1.6s"><span class="xv-tag ok">${icon("check")} Approved</span></div>
-            <div class="xv-mover go" style="--d:4.2s;--t:1.4s"><span class="xv-tag coin">${icon("coins")} 30 credits</span></div>
+            <div class="xv-mover go" style="--d:4.2s;--t:1.4s"><span class="xv-tag coin">${icon("coins")} ${vanCr} credits</span></div>
           </div>
-          <div class="xv-org xv-a right" ${d(0.4)}>${avatar(silver)}<div><b>${silver.name}</b><div class="xv-delta pos xv-a pop" ${d(5.6)}>+30 credits</div></div></div>
+          <div class="xv-org xv-a right" ${d(0.4)}>${avatar(silver)}<div><b>${silver.name}</b><div class="xv-delta pos xv-a pop" ${d(5.6)}>+${vanCr} credits</div></div></div>
         </div>
-        <div class="xv-a fade" ${d(6)} style="color:#C8CCD3;font-size:1.2em">Lenders earn credits. Borrowers spend them. No money changes hands.</div>` },
+        <div class="xv-a fade" ${d(6)} style="color:#C8CCD3;font-size:1.2em">Lenders earn credits. Borrowers spend them. Borrowers pay S$0 out of pocket.</div>` },
       { label: "Rate", dur: 6, html: `
         <div class="xv-eyebrow xv-a fade" ${d(0.1)}>Both sides rate</div>
         <div class="xv-row">
@@ -450,7 +465,7 @@
       <div>
         <span class="eyebrow">For Singapore's community well-being sector</span>
         <h1><strong>Share</strong> what ${icon("truck")} you have.<br><strong>Find</strong> ${icon("tool")} what you need.</h1>
-        <p class="lead">A members-only exchange where verified charities lend each other idle vans, rooms, equipment and skilled volunteers. No phone tag. No committee wait.</p>
+        <p class="lead">A members-only exchange where verified charities lend each other idle vans, rooms, equipment and skilled volunteers. No phone tag. No committee wait. Credits are funded by donors, so borrowing costs the borrower nothing.</p>
         <form class="search-card" id="hero-search">
           <div class="search-sentence">
             <span>I need</span> ${categorySelect("")}
@@ -530,7 +545,7 @@
       <div class="trust-grid">
         <div class="trust-item"><div class="ti-icon">${icon("shield")}</div><h3>Verified charities only</h3><p class="muted">During the pilot, only registered charities and IPCs vetted by TMT can join. Every member shows a verification badge.</p></div>
         <div class="trust-item"><div class="ti-icon">${icon("star")}</div><h3>Two-way ratings</h3><p class="muted">Lenders and borrowers rate each other after every exchange. Trust scores are public to all members.</p></div>
-        <div class="trust-item"><div class="ti-icon">${icon("coins")}</div><h3>Transparent credit ledger</h3><p class="muted">Every exchange is logged with its estimated value, so you have records ready for grant reports and audits.</p></div>
+        <div class="trust-item"><div class="ti-icon">${icon("coins")}</div><h3>Transparent credit ledger</h3><p class="muted">Every credit is traced from donor to exchange, with its estimated market value, so you have records ready for grant reports and audits.</p></div>
       </div>
     </div></section>
 
@@ -544,9 +559,9 @@
     </div></section>
 
     <section class="cta-band" id="partners"><div class="wrap">
-      <div><h2>Have idle assets? <strong>Lend them to the sector.</strong></h2>
-        <p>Corporate partners can list empty boardrooms, retired laptops, spare truck slots or volunteer drivers for charities only. Your contributions are tracked for CSR reporting.</p></div>
-      <div style="display:flex;gap:12px;flex-wrap:wrap"><a class="btn light" href="#/join">Apply as a charity</a><button class="btn ghost" style="color:#fff;border-color:#fff" data-action="partner">Partner with us</button></div>
+      <div><h2>Have idle assets or funds? <strong>Put them to work.</strong></h2>
+        <p>Corporate partners can list empty boardrooms, retired laptops, spare truck slots or volunteer drivers, or fund credits directly. Your contributions are tracked for CSR reporting.</p></div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap"><a class="btn light" href="#/donate">Fund credits</a><a class="btn light" href="#/join">Apply as a charity</a><button class="btn ghost" style="color:#fff;border-color:#fff" data-action="partner">Partner with us</button></div>
     </div></section>`;
 
     return {
@@ -698,10 +713,14 @@
         <a class="btn block" style="margin-top:16px" href="#/dashboard/requests">Review requests</a>
         <a class="btn ghost block" style="margin-top:10px" href="#/dashboard/listings">Edit or pause listing</a>
       </div>`
-      : isAdmin() ? `
+      : isAdmin() || isDonor() ? `
       <div class="bp-head">${priceHTML(l, true)}</div>
-      <div class="bp-body"><div class="note">${icon("info")}<span>You're viewing as TMT Admin. Switch to a charity member in the bar at the top to try booking.</span></div>
-        <button class="btn ghost block" style="margin-top:14px" data-action="flag" data-id="${l.id}">${icon("flag")} Flag for review</button></div>`
+      <div class="bp-body"><div class="note">${icon("info")}<span>You're viewing as ${isAdmin() ? "TMT Admin" : "a donor"}. Switch to a charity member or a member of the public in the bar at the top to try booking.</span></div>
+        ${isAdmin() ? `<button class="btn ghost block" style="margin-top:14px" data-action="flag" data-id="${l.id}">${icon("flag")} Flag for review</button>` : `<a class="btn block" style="margin-top:14px" href="#/donate">${icon("heart")} Fund credits</a>`}</div>`
+      : isPublic() && l.credits === 0 ? `
+      <div class="bp-head">${priceHTML(l, true)}</div>
+      <div class="bp-body"><div class="note warn">${icon("info")}<span>This is a corporate gift reserved for verified charities. Members of the public can use any listing priced in credits.</span></div>
+        <a class="btn ghost block" style="margin-top:14px" href="#/browse">Find another resource</a></div>`
       : `
       <div class="bp-head">${priceHTML(l, true)}
         <div class="small muted" style="margin-top:4px">${l.booking === "instant" ? `${icon("zap")} Instant book: confirmed straight away` : "Request to book: the owner approves your request"}</div></div>
@@ -733,8 +752,8 @@
           <div class="facts">
             <div class="fact">${icon("box")}<div><b>Capacity</b>${esc(l.qty)}</div></div>
             <div class="fact">${icon("clock")}<div><b>Hours</b>${esc(l.time)}</div></div>
-            <div class="fact">${icon("coins")}<div><b>Credits</b>${l.credits ? `${l.credits} per ${esc(l.unit)}` : "Free for charities"}</div></div>
-            <div class="fact">${icon("dollar")}<div><b>Est. market value</b>${money(l.value)} per ${esc(l.unit)}</div></div>
+            <div class="fact">${icon("coins")}<div><b>Credits</b>${l.credits ? `${l.credits} per ${esc(l.unit)} · ${marketPct(l)}% of market rate` : "Free for charities"}</div></div>
+            <div class="fact">${icon("dollar")}<div><b>Est. market value</b>${money(l.value)} per ${esc(l.unit)}${l.credits ? ` · owner earns ${money(l.credits * CREDIT_VALUE)}` : ""}</div></div>
           </div></div>
 
         <div class="detail-section"><h3>Weekly availability</h3>
@@ -773,9 +792,10 @@
             <div><span>${l.credits ? `${l.credits} credits × ${units} ${esc(l.unit)}${units > 1 ? "s" : ""}` : "Corporate gift"}</span><span>${total} credits</span></div>
             <div><span>Your balance</span><span>${bal} credits</span></div>
             <div class="total"><span>Balance after</span><span>${bal - total} credits</span></div>
-            <div class="muted small"><span>Estimated savings vs. renting</span><span class="amt-pos">${money(l.value * units)}</span></div>`;
+            <div class="muted small"><span>${isPublic() ? "Cash value of credits used" : "Out-of-pocket cost"}</span><span>${isPublic() ? money(total * CREDIT_VALUE) : "S$0 · donor-funded"}</span></div>
+            <div class="muted small"><span>Estimated savings vs. renting</span><span class="amt-pos">${money(l.value * units - (isPublic() ? total * CREDIT_VALUE : 0))}</span></div>`;
           document.getElementById("book-btn").disabled = !ok || !enough;
-          if (!enough) document.getElementById("avail-note").innerHTML += `<div class="note bad">${icon("coins")}<span>Not enough credits. Lend a resource to earn more.</span></div>`;
+          if (!enough) document.getElementById("avail-note").innerHTML += `<div class="note bad">${icon("coins")}<span>${isPublic() ? 'Not enough credits. <button type="button" class="link-btn" data-action="buy">Buy credits</button> to continue.' : "Not enough credits. Lend a resource to earn more, or ask TMT about the common pool."}</span></div>`;
           const nx = form.querySelector("[data-next]");
           nx && nx.addEventListener("click", () => { form.date.value = nextAvailable(l, date); upd(); });
         };
@@ -784,10 +804,10 @@
         form.addEventListener("submit", (e) => {
           e.preventDefault();
           const units = Math.max(1, Number(form.units.value) || 1);
-          const b = { id: "B" + Date.now(), listingId: l.id, by: CURRENT_ORG_ID, date: form.date.value, units, created: todayISO(), note: form.note ? form.note.value : "" };
+          const b = { id: "B" + Date.now(), listingId: l.id, by: curId(), date: form.date.value, units, created: todayISO(), note: form.note ? form.note.value : "" };
           if (l.booking === "instant") {
             b.status = "confirmed";
-            if (l.credits) state.ledger.push({ date: todayISO(), desc: `${l.title} - ${o.name}`, amount: -l.credits * units });
+            if (l.credits) ledger().push({ date: todayISO(), desc: `${l.title} - ${o.name}`, amount: -l.credits * units });
           } else b.status = "pending";
           state.bookings.push(b);
           save();
@@ -822,20 +842,21 @@
 
   // ---------------------------------------------------------------- DASHBOARD
   function viewDashboard(tab) {
+    if (isDonor()) return { html: `<div class="wrap section"><div class="empty">${icon("heart")}<h3>You're viewing as a donor</h3><p>Donors fund credits and follow their impact on the funding page.</p><a class="btn" href="#/donate">Open the donor page</a></div></div>` };
     if (isAdmin()) return { html: `<div class="wrap section"><div class="empty">${icon("info")}<h3>You're viewing as TMT Admin</h3><p>The member dashboard is for charities. Open the admin console instead.</p><a class="btn" href="#/admin">Open admin console</a></div></div>` };
 
     const myListings = allListings().filter(isMine);
     const incoming = state.bookings.filter((b) => isMine(getListing(b.listingId)));
-    const outgoing = state.bookings.filter((b) => b.by === CURRENT_ORG_ID);
+    const outgoing = state.bookings.filter((b) => b.by === curId());
     const pendingIn = incoming.filter((b) => b.status === "pending");
     const toRate = outgoing.filter((b) => b.status === "completed" && !b.ratedByBorrower).concat(incoming.filter((b) => b.status === "completed" && !b.ratedBySupplier));
     const upcoming = outgoing.filter((b) => b.status === "confirmed" || b.status === "pending").sort((a, b) => a.date.localeCompare(b.date));
     const saved = outgoing.filter((b) => b.status === "completed" || b.status === "confirmed").reduce((s, b) => s + getListing(b.listingId).value * b.units, 0);
 
-    const tabs = [
-      ["overview", "Overview"], ["requests", "Incoming requests", pendingIn.length], ["bookings", "My bookings"],
-      ["listings", "My listings"], ["credits", "Credits"],
-    ];
+    const tabs = isPublic()
+      ? [["overview", "Overview"], ["bookings", "My bookings"], ["credits", "Credits"]]
+      : [["overview", "Overview"], ["requests", "Incoming requests", pendingIn.length], ["bookings", "My bookings"],
+        ["listings", "My listings"], ["credits", "Credits"]];
 
     const bookingRow = (b, side) => {
       const l = getListing(b.listingId), other = getOrg(side === "in" ? b.by : l.orgId), pool = poolOf(l);
@@ -858,7 +879,7 @@
     if (tab === "overview") {
       body = `
         <div class="kpis">
-          <div class="kpi" style="--kc:var(--blue-tint)"><span>Credit balance</span><b>${balance()}</b><small>credits available</small></div>
+          <div class="kpi" style="--kc:var(--blue-tint)"><span>Credit balance</span><b>${balance()}</b><small>credits ≈ ${money(balance() * CREDIT_VALUE)}</small></div>
           <div class="kpi" style="--kc:var(--blue)"><span>Upcoming</span><b>${upcoming.length}</b><small>bookings and pending requests</small></div>
           <div class="kpi"><span>Needs your action</span><b>${pendingIn.length + toRate.length}</b><small>approvals and ratings</small></div>
           <div class="kpi" style="--kc:var(--green)"><span>Estimated savings</span><b>${money(saved)}</b><small>vs. renting at market rates</small></div>
@@ -867,7 +888,7 @@
           <div>
             <div class="panel"><div class="panel-head"><h3>Needs your action</h3></div>
               ${pendingIn.map((b) => bookingRow(b, "in")).join("")}
-              ${toRate.map((b) => bookingRow(b, b.by === CURRENT_ORG_ID ? "out" : "in")).join("")}
+              ${toRate.map((b) => bookingRow(b, b.by === curId() ? "out" : "in")).join("")}
               ${!pendingIn.length && !toRate.length ? '<div class="panel-body muted">All caught up!</div>' : ""}</div>
             <div class="panel"><div class="panel-head"><h3>Upcoming</h3><a class="small" href="#/dashboard/bookings">See all</a></div>
               ${upcoming.map((b) => bookingRow(b, "out")).join("") || '<div class="panel-body muted">Nothing booked yet. <a href="#/browse">Find a resource</a>.</div>'}</div>
@@ -875,12 +896,16 @@
           <div>
             <div class="panel"><div class="panel-head"><h3>Your trust profile</h3></div><div class="panel-body" style="display:flex;gap:20px;align-items:center">
               <div class="trust-score" style="border:0;margin:0;padding:0"><b style="font-size:2.4rem">${me().trust.toFixed(1)}</b><span>Trust score</span></div>
-              <div class="small">${stars(me().trust)}<br>${me().exchanges} completed exchanges<br><span class="badge ok" style="margin-top:6px">${icon("shield")} Verified by TMT · IPC</span></div></div></div>
+              <div class="small">${stars(me().trust)}<br>${me().exchanges} completed exchanges<br><span class="badge ok" style="margin-top:6px">${icon("shield")} ${isPublic() ? "Singpass-verified" : "Verified by TMT · IPC"}</span></div></div></div>
             <div class="panel"><div class="panel-head"><h3>Quick actions</h3></div><div class="panel-body" style="display:grid;gap:10px">
-              <a class="btn block" href="#/new">${icon("plus")} List a resource</a>
-              <a class="btn ghost block" href="#/browse">${icon("search")} Find a resource</a></div></div>
-            <div class="panel"><div class="panel-head"><h3>Your listings</h3><a class="small" href="#/dashboard/listings">Manage</a></div>
+              ${isPublic() ? `<button class="btn block" data-action="buy">${icon("coins")} Buy credits</button>` : `<a class="btn block" href="#/new">${icon("plus")} List a resource</a>`}
+              <a class="btn ghost block" href="#/browse">${icon("search")} Find a resource</a>
+              <button class="btn ghost block" data-action="donate-back">${icon("heart")} Donate credits back</button></div></div>
+            ${isPublic() ? "" : `<div class="panel"><div class="panel-head"><h3>Your listings</h3><a class="small" href="#/dashboard/listings">Manage</a></div>
               ${myListings.map((l) => `<div class="row-item pool-${poolOf(l)}"><div class="ri-icon">${icon(catOf(l).icon)}</div><div class="ri-main"><b>${esc(l.title)}</b><span>${listingStatus(l) === "live" ? "Live" : "Paused"} · ${reviewsFor(l.id).length} reviews</span></div></div>`).join("")}</div>
+            <div class="panel"><div class="panel-head"><h3>${icon("zap")} Smart nudge <span class="badge neutral">Concept</span></h3></div><div class="panel-body small">
+              <p style="margin:0 0 8px">Your <b>Wheelchairs x6</b> haven't been borrowed in 3 weeks. Listing them on weekends could earn about <b>${creditsFor(30) * 8} credits</b> a month.</p>
+              <p class="muted" style="margin:0">Future idea: an AI engine that nudges members to dedicate idle resources, and nudges donors toward the pools with the most unmet demand.</p></div></div>`}
           </div>
         </div>`;
     } else if (tab === "requests") {
@@ -906,26 +931,33 @@
               <a class="btn sm slate" href="#/listing/${l.id}">View</a></div></div>`; }).join("")}</div>`;
     } else if (tab === "credits") {
       let run = 0;
-      const rows = state.ledger.map((e) => { run += e.amount; return { ...e, run }; }).reverse();
-      const earned = state.ledger.filter((e) => e.amount > 0).reduce((s, e) => s + e.amount, 0);
-      const spent = -state.ledger.filter((e) => e.amount < 0).reduce((s, e) => s + e.amount, 0);
+      const rows = ledger().map((e) => { run += e.amount; return { ...e, run }; }).reverse();
+      const earned = ledger().filter((e) => e.amount > 0).reduce((s, e) => s + e.amount, 0);
+      const spent = -ledger().filter((e) => e.amount < 0).reduce((s, e) => s + e.amount, 0);
+      const myPayouts = state.payouts.filter((x) => x.orgId === curId());
       body = `<div class="kpis">
           <div class="kpi" style="--kc:var(--blue-tint)"><span>Balance</span><b>${balance()}</b><small>credits</small></div>
-          <div class="kpi" style="--kc:var(--green)"><span>Earned</span><b>${earned}</b><small>incl. 100 welcome credits</small></div>
-          <div class="kpi"><span>Spent</span><b>${spent}</b><small>on borrowed resources</small></div>
-          <div class="kpi" style="--kc:var(--blue)"><span>Lend:borrow ratio</span><b>${spent ? (earned - 100) / spent >= 1 ? "Net lender" : "Net borrower" : "-"}</b><small>keeps the exchange balanced</small></div>
+          <div class="kpi" style="--kc:var(--green)"><span>Earned</span><b>${earned}</b><small>${isPublic() ? "credits bought" : "incl. 100 welcome credits"}</small></div>
+          <div class="kpi"><span>Used</span><b>${spent}</b><small>on borrowed, redeemed or donated</small></div>
+          <div class="kpi" style="--kc:var(--blue)"><span>Cash value</span><b>${money(balance() * CREDIT_VALUE)}</b><small>at S$${CREDIT_VALUE} per credit</small></div>
         </div>
+        <div class="panel"><div class="panel-body" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:space-between">
+          <span class="small muted" style="max-width:560px">${isPublic() ? `Buy credits at S$${CREDIT_VALUE} each to use shared resources. Don't need them any more? Donate them back to the common pool.` : `Don't need all your credits? Redeem them with TMT for cash to cover running costs, or donate them back so another charity can use them.`}</span>
+          <span style="display:flex;gap:10px;flex-wrap:wrap">
+            ${isPublic() ? `<button class="btn" data-action="buy">${icon("coins")} Buy credits</button>` : `<button class="btn" data-action="redeem">${icon("dollar")} Redeem for cash</button>`}
+            <button class="btn ghost" data-action="donate-back">${icon("heart")} Donate credits back</button></span></div></div>
+        ${myPayouts.length ? `<div class="panel"><div class="panel-head"><h3>Cash redemptions</h3></div>${myPayouts.map((x) => `<div class="row-item"><div class="ri-icon">${icon("dollar")}</div><div class="ri-main"><b>${money(x.amount)} for ${x.credits} credits</b><span>Requested ${fmtDate(x.date, false)}</span></div><div class="ri-actions">${x.status === "paid" ? '<span class="badge ok">Paid by TMT</span>' : '<span class="badge warn">Awaiting TMT payout</span>'}</div></div>`).join("")}</div>` : ""}
         <div class="two-col">
           <div class="panel"><div class="panel-head"><h3>Credit ledger</h3><button class="btn sm ghost" data-action="export">${icon("file")} Export for grant report</button></div>
             <div class="table-wrap"><table class="tbl"><thead><tr><th>Date</th><th>Description</th><th style="text-align:right">Credits</th><th style="text-align:right">Balance</th></tr></thead><tbody>
             ${rows.map((e) => `<tr><td>${fmtDate(e.date, false)}</td><td>${esc(e.desc)}</td><td style="text-align:right" class="${e.amount > 0 ? "amt-pos" : "amt-neg"}">${e.amount > 0 ? "+" : ""}${e.amount}</td><td style="text-align:right">${e.run}</td></tr>`).join("")}
             </tbody></table></div></div>
           <div class="panel"><div class="panel-head"><h3>How credits work</h3></div><div class="panel-body small">
-            <p><b>Earn</b> credits every time another member borrows your resource. The owner sets the rate per unit.</p>
-            <p><b>Spend</b> credits to borrow. Instant bookings are deducted straight away, and requests once they're approved.</p>
-            <p><b>Corporate gifts</b> cost 0 credits. Partners donate capacity for charities only.</p>
-            <p><b>Closed loop:</b> credits can't be bought, sold or cashed out, so no money changes hands between charities.</p>
-            <p class="muted" style="margin:0">Every new member starts with 100 welcome credits.</p></div></div>
+            <p><b>Where credits come from.</b> Donors fund them with real money (S$${CREDIT_VALUE} = 1 credit). TMT, the neutral trusted party, issues them. ${isPublic() ? "You can also buy credits yourself." : "Every new charity starts with 100 welcome credits from the common pool."}</p>
+            <p><b>Earn</b> credits when another member uses your resource. They are priced at about ${Math.round(PAYOUT_RATE * 100)}% of the market rate, within TMT's ${Math.round(RATE_BAND.min * 100)}-${Math.round(RATE_BAND.max * 100)}% band.</p>
+            <p><b>Spend</b> credits to borrow. Users never pay cash out of pocket for donor-funded credits.</p>
+            <p><b>Don't need them?</b> ${isPublic() ? "Donate them back to the common pool." : "Redeem them for cash with TMT, or donate them back."}</p>
+            <p class="muted" style="margin:0">Corporate gifts cost 0 credits and are for charities only.</p></div></div>
         </div>`;
     }
 
@@ -961,7 +993,7 @@
           const picked = [...el.querySelectorAll("#tag-input .chip.on")].map((x) => x.textContent);
           if (side === "out") {
             b.ratedByBorrower = true;
-            state.extraReviews.push({ listingId: l.id, from: CURRENT_ORG_ID, stars: val, date: todayISO(), text: el.querySelector("#rate-text").value || "Smooth exchange, thank you!", tags: picked });
+            state.extraReviews.push({ listingId: l.id, from: curId(), stars: val, date: todayISO(), text: el.querySelector("#rate-text").value || "Smooth exchange, thank you!", tags: picked });
           } else b.ratedBySupplier = true;
           save(); closeModal(); render();
           toast(`Thanks! Your ${val}-star rating for ${esc(other.name)} has been recorded.`);
@@ -971,7 +1003,7 @@
 
   // ---------------------------------------------------------------- NEW LISTING
   function viewNewListing() {
-    if (isAdmin()) return { html: `<div class="wrap section"><div class="empty">${icon("info")}<h3>Switch to a charity member to list a resource</h3></div></div>` };
+    if (state.role !== "charity") return { html: `<div class="wrap section"><div class="empty">${icon("info")}<h3>Switch to a charity member to list a resource</h3><p>Only verified charities and corporate partners list resources during the pilot.</p></div></div>` };
     return {
       html: `
       <div class="page-head"><div class="wrap"><div class="crumbs"><a href="#/">Home</a> / <a href="#/dashboard">Dashboard</a> / New listing</div>
@@ -1001,7 +1033,7 @@
               <label><input type="radio" name="booking" value="request" checked><span><b>${icon("send")} Request to Book</b>You approve each request. Best for vehicles, kitchens and halls.</span></label>
             </div>
             <div class="grid-2">
-              <div class="field"><label for="n-credits">Credits per unit</label><input type="number" id="n-credits" name="credits" min="0" max="200" value="20"></div>
+              <div class="field"><label for="n-credits">Credits per unit <span class="hint">(S$${CREDIT_VALUE} each)</span></label><input type="number" id="n-credits" name="credits" min="0" max="500" value="${creditsFor(100)}"><span class="hint" id="n-rate"></span></div>
               <div class="field"><label for="n-unit">Unit</label><select id="n-unit" name="unit"><option>session</option><option>half-day</option><option>day</option><option>hour</option><option>week</option></select></div>
             </div>
             <div class="field"><label for="n-rules">House rules <span class="hint">(one per line, optional)</span></label><textarea id="n-rules" name="rules" style="min-height:70px" placeholder="Return with a full tank"></textarea></div>
@@ -1012,7 +1044,7 @@
           <h3>${icon("info")} Tips for a great listing</h3>
           <ul><li>Be specific about times. "Tue &amp; Thu, 1-6pm" gets more bookings than "flexible".</li>
             <li>Use Instant Book for items under about S$100 in value. It removes friction for everyone.</li>
-            <li>Set credits close to the value you'd want back. Most members charge 5-40 per use.</li>
+            <li>Credits are set as a share of the market rate. TMT's standard is ${Math.round(PAYOUT_RATE * 100)}%, and listings must sit between ${Math.round(RATE_BAND.min * 100)}% and ${Math.round(RATE_BAND.max * 100)}%.</li>
             <li>Add house rules so expectations are clear before anyone books.</li></ul>
           <div class="note ok">${icon("shield")}<span>Members who borrow your resource will rate the experience, and you'll rate them back.</span></div>
         </aside>
@@ -1021,13 +1053,25 @@
         const pool = document.getElementById("n-pool"), cat = document.getElementById("n-cat");
         const fill = () => { cat.innerHTML = CATEGORIES.filter((c) => c.pool === pool.value).map((c) => `<option value="${c.id}">${c.label}</option>`).join(""); };
         pool.addEventListener("change", fill); fill();
-        document.getElementById("new-form").addEventListener("submit", (e) => {
+        const form = document.getElementById("new-form"), rate = document.getElementById("n-rate");
+        let creditsEdited = false;
+        const pct = () => (Number(form.value.value) ? Math.round((Number(form.credits.value) * CREDIT_VALUE * 100) / Number(form.value.value)) : 0);
+        const inBand = () => !Number(form.credits.value) || (pct() >= RATE_BAND.min * 100 && pct() <= RATE_BAND.max * 100);
+        const showRate = () => {
+          const c = Number(form.credits.value) || 0;
+          rate.innerHTML = c ? `${pct()}% of market rate · you earn ${money(c * CREDIT_VALUE)}${inBand() ? "" : ` <b style="color:var(--red)">(outside TMT's ${Math.round(RATE_BAND.min * 100)}-${Math.round(RATE_BAND.max * 100)}% band)</b>`}` : "0 credits lists it as a free gift";
+        };
+        form.credits.addEventListener("input", () => { creditsEdited = true; showRate(); });
+        form.value.addEventListener("input", () => { if (!creditsEdited) form.credits.value = creditsFor(Number(form.value.value) || 0); showRate(); });
+        showRate();
+        form.addEventListener("submit", (e) => {
           e.preventDefault();
+          if (!inBand()) { toast(`TMT requires credits to be ${Math.round(RATE_BAND.min * 100)}-${Math.round(RATE_BAND.max * 100)}% of the market rate (standard: ${Math.round(PAYOUT_RATE * 100)}%).`); return; }
           const f = new FormData(e.target);
           const days = f.getAll("days").map(Number);
           if (!days.length) { toast("Pick at least one available day."); return; }
           const l = {
-            id: "N" + Date.now(), orgId: CURRENT_ORG_ID, cat: f.get("cat"), title: f.get("title").trim(), desc: f.get("desc").trim(),
+            id: "N" + Date.now(), orgId: curId(), cat: f.get("cat"), title: f.get("title").trim(), desc: f.get("desc").trim(),
             days, time: f.get("time"), booking: f.get("booking"), credits: Number(f.get("credits")) || 0, unit: f.get("unit"),
             value: Number(f.get("value")) || 0, qty: f.get("qty"), rules: f.get("rules").split("\n").map((s) => s.trim()).filter(Boolean),
           };
@@ -1118,6 +1162,160 @@
     };
   }
 
+  // ---------------------------------------------------------------- DONATE (donor funding)
+  let donated = null;
+  function viewDonate() {
+    const pl = state.pool, vanCr = getListing("L1").credits;
+    if (donated) {
+      const d = donated; donated = null;
+      return { html: `<div class="wrap section"><div class="form-card success-box" style="max-width:680px;margin:0 auto">
+        <div class="big-check">${icon("check")}</div><h2>Thank you, <strong>${esc(d.donor)}</strong></h2>
+        <p class="muted">TMT received ${money(d.amount)} and issued <b>${d.credits} credits</b> into ${esc(poolLabel(d.dest))}. Charities and members will spend them, so no borrower pays out of pocket.</p>
+        <div class="timeline">
+          <div><span class="dot done">${icon("check")}</span> ${money(d.amount)} received by TMT (a registered charity)</div>
+          <div><span class="dot done">${icon("check")}</span> Converted at S$${CREDIT_VALUE} = 1 credit: ${d.credits} credits issued</div>
+          <div><span class="dot now">3</span> Credits held in ${esc(poolLabel(d.dest))} and allocated to verified members</div>
+          <div><span class="dot">4</span> Spent on exchanges; owners redeem or donate them back. You'll get an impact report</div>
+        </div>
+        <p class="small muted">Enough for about <b>${Math.floor(d.credits / vanCr)}</b> half-days of a 14-seater van. Demo tip: switch to <b>TMT Admin</b> to see it in the funding ledger.</p>
+        <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap"><a class="btn" href="#/browse">Browse funded resources</a><a class="btn ghost" href="#/">Back to home</a></div></div></div>` };
+    }
+    const recent = state.donations.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6);
+    return {
+      html: `
+      <div class="page-head"><div class="wrap"><div class="crumbs"><a href="#/">Home</a> / Fund credits</div>
+        <h1>Fund <strong style="font-weight:700;color:var(--red)">credits</strong>, fund the sector</h1>
+        <p class="muted" style="margin:0;max-width:760px">Give real money, and TMT turns it into credits that charities spend on vans, rooms and skills. Borrowers pay nothing, and owners turn idle assets into income.</p></div></div>
+      <div class="wrap"><div class="form-layout">
+        <form class="form-card" id="donate-form">
+          <fieldset><legend><span class="n">1</span> About you</legend>
+            <div class="grid-2">
+              <div class="field"><label for="d-name">Name / organisation</label><input type="text" id="d-name" name="donor" required value="${isDonor() ? esc(me().name) : ""}" placeholder="e.g. Meridian Bank Singapore"></div>
+              <div class="field"><label for="d-type">Donor type</label><select id="d-type" name="type"><option>Corporate</option><option>Foundation</option><option>Individual</option></select></div>
+            </div>
+            <label class="check"><input type="checkbox" name="anon"> Give anonymously (TMT still issues a receipt)</label>
+          </fieldset>
+          <fieldset><legend><span class="n">2</span> How much?</legend>
+            <div class="chips" id="d-presets" style="margin-bottom:12px">${[500, 1000, 5000, 10000].map((n) => `<button type="button" class="chip" data-amt="${n}">${money(n)}</button>`).join("")}</div>
+            <div class="field"><label for="d-amt">Amount (S$)</label><input type="number" id="d-amt" name="amount" min="${CREDIT_VALUE}" step="10" value="1000" required></div>
+            <div class="note ok" id="d-preview" style="margin-top:0"></div>
+          </fieldset>
+          <fieldset><legend><span class="n">3</span> Where should it go?</legend>
+            <div class="radio-cards" style="margin-bottom:14px">
+              <label><input type="radio" name="dest" value="pool" checked><span><b>${icon("heart")} Common pool</b>Not sure who or where to fund? TMT directs it to where demand is greatest.</span></label>
+              <label><input type="radio" name="dest" value="earmark"><span><b>${icon("pin")} Earmark a resource type</b>Credits can only be spent on the type you choose.</span></label>
+            </div>
+            <div class="field" id="d-earmark-wrap" hidden><label for="d-earmark">Resource type</label><select id="d-earmark" name="earmark">${Object.values(POOLS).map((p) => `<option value="${p.id}">${p.label}: ${p.sub}</option>`).join("")}</select></div>
+          </fieldset>
+          <div class="note">${icon("shield")}<span>Mock-up: no payment is taken. In the real platform TMT, as a registered charity, would issue a receipt and report where every credit went.</span></div>
+          <div style="display:flex;justify-content:flex-end;margin-top:16px"><button class="btn" type="submit">${icon("heart")} Fund credits</button></div>
+        </form>
+        <aside>
+          <div class="side-card" style="margin-bottom:20px">
+            <h3>${icon("coins")} Funding pool</h3>
+            <div class="pool-stats"><div><b>${pl.available.toLocaleString()}</b><span>credits available</span></div><div><b>${pl.donated.toLocaleString()}</b><span>funded by donors</span></div><div><b>${pl.returned.toLocaleString()}</b><span>donated back</span></div><div><b>${pl.issued.toLocaleString()}</b><span>issued to members</span></div></div>
+            <p class="small muted" style="margin:12px 0 0">Demand is likely to outstrip supply, so unspent credits go back to the pool.</p>
+          </div>
+          <div class="side-card">
+            <h3>Recent funding</h3>
+            ${recent.map((d) => `<div class="don-row"><div><b>${esc(d.donor)}</b><span>${fmtDate(d.date, false)} · ${d.kind === "return" ? "credits donated back" : money(d.amount)} to ${esc(poolLabel(d.dest))}</span></div><b class="amt-pos">+${d.credits}</b></div>`).join("")}
+          </div>
+        </aside>
+      </div></div>`,
+      mount() {
+        const f = document.getElementById("donate-form"), prev = document.getElementById("d-preview");
+        const upd = () => {
+          const amt = Number(f.amount.value) || 0, c = Math.floor(amt / CREDIT_VALUE);
+          prev.innerHTML = `${icon("coins")}<span><b>${money(amt)} becomes ${c} credits</b> (S$${CREDIT_VALUE} = 1 credit). That covers about ${Math.floor(c / vanCr)} half-days of a 14-seater van, or ${Math.floor(c / getListing("L5").credits)} training-room sessions, free to the charities that use them.</span>`;
+          document.querySelectorAll("#d-presets .chip").forEach((b) => b.classList.toggle("on", Number(b.dataset.amt) === amt));
+          document.getElementById("d-earmark-wrap").hidden = f.dest.value !== "earmark";
+        };
+        f.addEventListener("input", upd);
+        document.getElementById("d-presets").addEventListener("click", (e) => { const b = e.target.closest("[data-amt]"); if (b) { f.amount.value = b.dataset.amt; upd(); } });
+        upd();
+        f.addEventListener("submit", (e) => {
+          e.preventDefault();
+          const amount = Number(f.amount.value) || 0, credits = Math.floor(amount / CREDIT_VALUE);
+          if (credits < 1) { toast(`The minimum is S$${CREDIT_VALUE} (1 credit).`); return; }
+          const dest = f.dest.value === "earmark" ? f.earmark.value : "pool";
+          const donor = f.anon.checked ? "Anonymous" : f.donor.value.trim();
+          state.donations.push({ id: "D" + Date.now(), date: todayISO(), donor, kind: "cash", amount, credits, dest });
+          state.pool.available += credits; state.pool.donated += credits;
+          save(); donated = { donor, amount, credits, dest }; render();
+        });
+      },
+    };
+  }
+
+  // ---------------------------------------------------------------- credit modals
+  const destOptions = () => `<option value="pool">Common pool (TMT directs it where it's needed)</option>${Object.values(POOLS).map((p) => `<option value="${p.id}">${p.label} only</option>`).join("")}`;
+
+  function openDonateBack() {
+    const bal = balance();
+    if (bal < 1) { toast("You have no credits to donate yet."); return; }
+    openModal("Donate credits back",
+      `<p class="small muted">Don't need all your credits? Return some to the pool so another member can use them. You have <b>${bal} credits</b> (≈ ${money(bal * CREDIT_VALUE)}).</p>
+       <div class="field"><label for="db-amt">Credits to donate</label><input type="number" id="db-amt" min="1" max="${bal}" value="${Math.min(10, bal)}"></div>
+       <div class="field"><label for="db-dest">Send to</label><select id="db-dest">${destOptions()}</select></div>
+       <div class="note ok">${icon("heart")}<span>Donated credits are logged against your name in the funding ledger and can't be reversed.</span></div>`,
+      `<button class="btn ghost" data-close>Cancel</button><button class="btn" id="db-go">Donate credits</button>`,
+      (el) => el.querySelector("#db-go").addEventListener("click", () => {
+        const n = Math.floor(Number(el.querySelector("#db-amt").value) || 0), dest = el.querySelector("#db-dest").value;
+        if (n < 1 || n > balance()) { toast(`Enter between 1 and ${balance()} credits.`); return; }
+        ledger().push({ date: todayISO(), desc: `Donated back to ${poolLabel(dest)}`, amount: -n });
+        state.pool.available += n; state.pool.returned += n;
+        state.donations.push({ id: "D" + Date.now(), date: todayISO(), donor: me().name, kind: "return", amount: 0, credits: n, dest });
+        save(); closeModal(); render(); toast(`Thank you! ${n} credits are back in ${esc(poolLabel(dest))}.`);
+      }));
+  }
+
+  function openRedeem() {
+    const bal = balance();
+    if (bal < 1) { toast("You have no credits to redeem yet."); return; }
+    openModal("Redeem credits for cash",
+      `<p class="small muted">Turn credits you've earned into cash to cover running costs such as van fuel and maintenance. TMT pays from the donor-funded reserve at S$${CREDIT_VALUE} per credit.</p>
+       <div class="field"><label for="rd-amt">Credits to redeem <span class="hint">(you have ${bal})</span></label><input type="number" id="rd-amt" min="1" max="${bal}" value="${Math.min(20, bal)}"></div>
+       <div class="note ok" id="rd-prev" style="margin-top:0"></div>
+       <div class="note">${icon("info")}<span>Paid to your organisation's bank account on file within 5 working days. Mock-up only.</span></div>`,
+      `<button class="btn ghost" data-close>Cancel</button><button class="btn" id="rd-go">Request payout</button>`,
+      (el) => {
+        const inp = el.querySelector("#rd-amt"), prev = el.querySelector("#rd-prev");
+        const upd = () => { prev.innerHTML = `${icon("dollar")}<span><b>${money((Number(inp.value) || 0) * CREDIT_VALUE)}</b> to your organisation</span>`; };
+        inp.addEventListener("input", upd); upd();
+        el.querySelector("#rd-go").addEventListener("click", () => {
+          const n = Math.floor(Number(inp.value) || 0);
+          if (n < 1 || n > balance()) { toast(`Enter between 1 and ${balance()} credits.`); return; }
+          ledger().push({ date: todayISO(), desc: `Redeemed for cash (${money(n * CREDIT_VALUE)}) via TMT`, amount: -n });
+          state.payouts.unshift({ id: "P" + Date.now(), orgId: curId(), credits: n, amount: n * CREDIT_VALUE, date: todayISO(), status: "pending" });
+          save(); closeModal(); render(); toast(`Payout of ${money(n * CREDIT_VALUE)} requested. TMT will confirm shortly.`);
+        });
+      });
+  }
+
+  function openBuyCredits() {
+    let pick = 25;
+    openModal("Buy credits",
+      `<p class="small muted">Members of the public pay S$${CREDIT_VALUE} per credit. Credits are about ${Math.round(PAYOUT_RATE * 100)}% of the market rate, so you still save on every resource, and your payment helps fund the sector.</p>
+       <div class="chips" id="by-packs" style="margin-bottom:14px">${[10, 25, 50, 100].map((n) => `<button type="button" class="chip ${n === pick ? "on" : ""}" data-n="${n}">${n} credits</button>`).join("")}</div>
+       <div class="summary-rows"><div><span id="by-n"></span><span id="by-cost"></span></div><div class="total"><span>New balance</span><span id="by-after"></span></div></div>
+       <div class="note">${icon("shield")}<span>Mock-up: no real payment is taken. A real checkout would use PayNow or card, and your Singpass-verified identity is already on file.</span></div>`,
+      `<button class="btn ghost" data-close>Cancel</button><button class="btn" id="by-go">Pay with PayNow (mock)</button>`,
+      (el) => {
+        const upd = () => {
+          el.querySelector("#by-n").textContent = `${pick} credits × S$${CREDIT_VALUE}`;
+          el.querySelector("#by-cost").textContent = money(pick * CREDIT_VALUE);
+          el.querySelector("#by-after").textContent = `${balance() + pick} credits`;
+          el.querySelectorAll("#by-packs .chip").forEach((c) => c.classList.toggle("on", Number(c.dataset.n) === pick));
+        };
+        el.querySelector("#by-packs").addEventListener("click", (e) => { const c = e.target.closest("[data-n]"); if (c) { pick = Number(c.dataset.n); upd(); } });
+        upd();
+        el.querySelector("#by-go").addEventListener("click", () => {
+          ledger().push({ date: todayISO(), desc: `Bought ${pick} credits (${money(pick * CREDIT_VALUE)}, PayNow)`, amount: pick });
+          save(); closeModal(); render(); toast(`${pick} credits added to your balance.`);
+        });
+      });
+  }
+
   // ---------------------------------------------------------------- ADMIN
   function viewAdmin() {
     if (!isAdmin()) return { html: `<div class="wrap section"><div class="empty">${icon("shield")}<h3>TMT Admin console</h3><p>This area is for TMT staff. In the demo, switch your role in the top bar.</p><button class="btn" data-action="as-admin">View as TMT Admin</button></div></div>` };
@@ -1140,6 +1338,14 @@
         </div>
         <div class="two-col">
           <div>
+            <div class="panel"><div class="panel-head"><h3>${icon("coins")} Credit funding (TMT as trusted intermediary)</h3><a class="small" href="#/donate">Open donor page</a></div>
+              <div class="panel-body"><div class="pool-stats"><div><b>${state.pool.available.toLocaleString()}</b><span>credits in pool</span></div><div><b>${state.pool.donated.toLocaleString()}</b><span>funded by donors</span></div><div><b>${state.pool.returned.toLocaleString()}</b><span>donated back</span></div><div><b>${state.pool.issued.toLocaleString()}</b><span>issued to members</span></div></div>
+              <p class="small muted" style="margin:12px 0 0">1 credit = ${money(CREDIT_VALUE)}. Listings must be priced at ${Math.round(RATE_BAND.min * 100)}-${Math.round(RATE_BAND.max * 100)}% of the market rate (standard ${Math.round(PAYOUT_RATE * 100)}%).</p></div>
+              ${state.donations.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5).map((d) => `<div class="row-item"><div class="ri-icon">${icon(d.kind === "return" ? "replay" : "heart")}</div><div class="ri-main"><b>${esc(d.donor)}</b><span>${fmtDate(d.date, false)} · ${d.kind === "return" ? "credits donated back" : money(d.amount) + " cash"} → ${esc(poolLabel(d.dest))}</span></div><b class="amt-pos">+${d.credits}</b></div>`).join("")}</div>
+
+            <div class="panel"><div class="panel-head"><h3>Cash redemptions (${state.payouts.filter((x) => x.status === "pending").length} pending)</h3><span class="small muted">Owners cashing out earned credits</span></div>
+              ${state.payouts.map((x) => `<div class="row-item"><div class="ri-icon">${icon("dollar")}</div><div class="ri-main"><b>${esc(getOrg(x.orgId).name)}</b><span>${x.credits} credits → ${money(x.amount)} · requested ${fmtDate(x.date, false)}</span></div><div class="ri-actions">${x.status === "paid" ? '<span class="badge ok">Paid</span>' : `<button class="btn sm green" data-action="pay-out" data-id="${x.id}">${icon("check")} Mark paid</button>`}</div></div>`).join("") || '<div class="panel-body muted">No redemptions yet.</div>'}</div>
+
             <div class="panel"><div class="panel-head"><h3>Verification queue (${state.pendingOrgs.length})</h3><span class="small muted">Target turnaround: 3 working days</span></div>
               ${state.pendingOrgs.map((p) => `<div class="row-item"><div class="avatar sm" style="background:var(--blue-dark)">${esc(p.name.split(" ").map((w) => w[0]).slice(0, 2).join(""))}</div>
                 <div class="ri-main"><b>${esc(p.name)}</b><span>UEN ${esc(p.uen)} · Charity no. ${esc(p.charityNo)} · ${p.ipc ? "IPC" : "Non-IPC"} · ${esc(p.sector)} · ${esc(p.area)}</span>
@@ -1186,22 +1392,26 @@
       case "reset": resetState(); render(); toast("Demo data reset."); return;
       case "noop": e.preventDefault(); toast("In the real platform this would open the Charity Portal record."); return;
       case "as-admin": state.role = "admin"; save(); render(); return;
+      case "buy": openBuyCredits(); return;
+      case "donate-back": openDonateBack(); return;
+      case "redeem": openRedeem(); return;
+      case "pay-out": { const x = state.payouts.find((p) => p.id === id); x.status = "paid"; save(); render(); toast(`${money(x.amount)} paid to ${esc(getOrg(x.orgId).name)}.`); return; }
       case "partner": toast("Email the TMT partnerships team at partners@example.sg"); return;
       case "approve": { const b = booking(); b.status = "confirmed"; save(); render(); toast(`Approved. ${esc(getOrg(b.by).name)} has been notified.`); return; }
       case "decline": { const b = booking(); b.status = "declined"; save(); render(); toast("Request declined. The borrower has been notified."); return; }
       case "sim-approve": {
         const b = booking(), l = getListing(b.listingId); b.status = "confirmed";
-        if (l.credits) state.ledger.push({ date: todayISO(), desc: `${l.title} - ${getOrg(l.orgId).name}`, amount: -l.credits * b.units });
+        if (l.credits) ledger().push({ date: todayISO(), desc: `${l.title} - ${getOrg(l.orgId).name}`, amount: -l.credits * b.units });
         save(); render(); toast(`${esc(getOrg(l.orgId).name)} approved your request.`); return;
       }
       case "cancel": {
         const b = booking(), l = getListing(b.listingId);
-        if (b.status === "confirmed" && l.credits) state.ledger.push({ date: todayISO(), desc: `Refund: cancelled ${l.title}`, amount: l.credits * b.units });
+        if (b.status === "confirmed" && l.credits) ledger().push({ date: todayISO(), desc: `Refund: cancelled ${l.title}`, amount: l.credits * b.units });
         b.status = "cancelled"; save(); render(); toast("Booking cancelled."); return;
       }
       case "complete": {
         const b = booking(), l = getListing(b.listingId); b.status = "completed";
-        if (isMine(l) && l.credits) state.ledger.push({ date: todayISO(), desc: `Lent ${l.title} - ${getOrg(b.by).name}`, amount: l.credits * b.units });
+        if (isMine(l) && l.credits) ledger().push({ date: todayISO(), desc: `Lent ${l.title} - ${getOrg(b.by).name}`, amount: l.credits * b.units });
         save(); render(); openRating(b, isMine(l) ? "in" : "out"); return;
       }
       case "rate": openRating(booking(), el.dataset.side); return;
@@ -1211,11 +1421,12 @@
         const p = state.pendingOrgs.find((x) => x.id === id);
         state.pendingOrgs = state.pendingOrgs.filter((x) => x.id !== id);
         state.approvedOrgs = (state.approvedOrgs || []).concat([{ id: p.id, name: p.name, short: p.name.split(" ").map((w) => w[0]).slice(0, 2).join(""), area: p.area, color: "#1E8A5B", trust: 0, exchanges: 0 }]);
-        save(); render(); toast(`${esc(p.name)} verified. A welcome email with 100 credits has been sent.`); return;
+        state.pool.available -= 100; state.pool.issued += 100;
+        save(); render(); toast(`${esc(p.name)} verified. 100 welcome credits issued from the common pool.`); return;
       }
       case "reject": { const p = state.pendingOrgs.find((x) => x.id === id); state.pendingOrgs = state.pendingOrgs.filter((x) => x.id !== id); save(); render(); toast(`${esc(p.name)} rejected. The applicant will be told why.`); return; }
       case "resolve": state.flags.find((f) => f.id === id).open = false; save(); render(); toast("Flag resolved."); return;
-      case "flag": state.flags.push({ id: "f" + Date.now(), listingId: id, reason: "Flagged by TMT admin for review.", by: CURRENT_ORG_ID, date: todayISO(), open: true }); save(); toast("Listing flagged and added to the review queue."); return;
+      case "flag": state.flags.push({ id: "f" + Date.now(), listingId: id, reason: "Flagged by TMT admin for review.", by: curId(), date: todayISO(), open: true }); save(); toast("Listing flagged and added to the review queue."); return;
     }
   });
 
@@ -1224,7 +1435,8 @@
       state.role = e.target.value; save();
       const { parts } = parseRoute();
       if (state.role === "admin" && ["dashboard", "new"].includes(parts[0])) go("#/admin");
-      else if (state.role === "charity" && parts[0] === "admin") go("#/dashboard");
+      else if (state.role !== "admin" && parts[0] === "admin") go(state.role === "donor" ? "#/donate" : "#/dashboard");
+      else if (state.role === "donor" && parts[0] === "dashboard") go("#/donate");
       else render();
       toast(state.role === "admin" ? "Now viewing as TMT Admin." : `Now viewing as ${esc(me().name)}.`);
     }
