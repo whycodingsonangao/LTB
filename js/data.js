@@ -1,6 +1,21 @@
 // All data below is fictional and exists only for the mock-up.
 // Organisation names, people, reviews and figures are invented.
 
+// Demo dates are relative to the day the page is opened, so upcoming bookings and
+// pending requests never drift into the past. demoDate(offset, days): `offset` days
+// from today (negative = past), then stepped away from today until it lands on one
+// of `days` (0=Sun ... 6=Sat), matching the listing's availability.
+const DEMO_TODAY = new Date();
+DEMO_TODAY.setHours(0, 0, 0, 0);
+function demoDate(offset, days) {
+  const d = new Date(DEMO_TODAY);
+  d.setDate(d.getDate() + offset);
+  const step = offset < 0 ? -1 : 1;
+  for (let i = 0; days && i < 7 && !days.includes(d.getDay()); i++) d.setDate(d.getDate() + step);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+const WEEKDAYS = [1, 2, 3, 4, 5];
+
 // The four resource types from the Re.Source brand ("More resources for less waste").
 const POOLS = {
   space: { id: "space", label: "Spaces", short: "Spaces", sub: "Venues & facilities", icon: "home",
@@ -110,23 +125,36 @@ const LISTINGS = [
   { id: "L18", orgId: "o6", cat: "svc-training", title: "Caregiver-training facilitator", days: [3, 6], time: "Flexible", booking: "request", credits: 8, unit: "hour", value: 120, qty: "1 facilitator",
     desc: "Experienced facilitator who runs our caregiver-resilience workshops. Can deliver a session to your caregivers or train your staff to run it themselves.",
     rules: ["Minimum 2-hour session"] },
+  { id: "L19", orgId: "o9", cat: "space-training", title: "Workshop room for 20, with TV screen", days: [1, 2, 3, 4, 5, 6], time: "9:00am - 5:00pm", booking: "instant", credits: 10, unit: "session", value: 180, qty: "20 pax",
+    desc: "Our group-therapy room in Novena doubles as a workshop space when sessions aren't running. It has a 65-inch TV screen, a whiteboard and stackable chairs for 20. Two minutes' walk from Novena MRT.",
+    rules: ["Leave the room as you found it", "No food in the room"] },
 ];
 
+// Past exchanges shared by the bookings, ledger and reviews below, so they stay in step.
+const PAST = {
+  designDone: demoDate(-39, WEEKDAYS), // Harbourlight used Lighthouse's designer (L14)
+  bloomLent: demoDate(-29, WEEKDAYS), // Harbourlight lent its training room to Bloom (L5)
+  wheelchairsLent: demoDate(-20), // Harbourlight lent wheelchairs to Northstar (L13)
+  paKit: demoDate(-14), // Harbourlight borrowed Northstar's PA kit (L11)
+  evergreenLent: demoDate(-9, WEEKDAYS), // Harbourlight lent its training room to Evergreen (L5)
+  chairsBooked: demoDate(-4), // Harbourlight booked Lighthouse's chairs (L10)
+};
+
 const REVIEWS = [
-  { listingId: "L1", from: "o3", stars: 5, date: "2026-10-09", text: "Van was spotless and the volunteer driver knew the route to the nature park. Saved us about $180 on our youth excursion.", tags: ["As described", "On time"] },
-  { listingId: "L1", from: "o8", stars: 5, date: "2026-09-18", text: "Smooth handover. Silver Threads was flexible when our session overran.", tags: ["Flexible"] },
-  { listingId: "L2", from: "o2", stars: 5, date: "2026-10-02", text: "Tie-down briefing was really thorough. Our seniors felt safe.", tags: ["As described", "Great briefing"] },
-  { listingId: "L3", from: "o4", stars: 5, date: "2026-10-12", text: "Swiftline's driver helped load 300 food packs. Incredible.", tags: ["Above and beyond"] },
-  { listingId: "L5", from: "o7", stars: 5, date: "2026-10-15", text: "Room was ready and the projector worked first time. Will book again for our volunteer onboarding.", tags: ["As described", "Clean"] },
-  { listingId: "L5", from: "o9", stars: 4, date: "2026-09-25", text: "Great space. Parking is tight in the evenings, so plan ahead.", tags: ["As described"] },
-  { listingId: "L6", from: "o5", stars: 5, date: "2026-09-28", text: "Hosted our 100-person volunteer appreciation day here. The AV tech was a lifesaver.", tags: ["Above and beyond"] },
-  { listingId: "L7", from: "o4", stars: 4, date: "2026-10-01", text: "Handy for storing our festive hamper stock. Access hours could be longer.", tags: ["Secure"] },
-  { listingId: "L10", from: "o1", stars: 5, date: "2026-10-06", text: "Chairs and tables were exactly as listed. Easy self-collect.", tags: ["As described", "Easy pickup"] },
-  { listingId: "L10", from: "o6", stars: 4, date: "2026-09-14", text: "A couple of the tables were wobbly, but overall very useful.", tags: ["Good value"] },
-  { listingId: "L11", from: "o2", stars: 5, date: "2026-09-30", text: "Mic quality was great for our seniors' karaoke afternoon!", tags: ["As described"] },
-  { listingId: "L14", from: "o1", stars: 5, date: "2026-09-20", text: "Our annual report finally looks professional. Fast turnaround too.", tags: ["Professional", "Fast"] },
-  { listingId: "L15", from: "o7", stars: 5, date: "2026-08-30", text: "Took us from a shoebox of receipts to audit-ready in three weeks.", tags: ["Professional"] },
-  { listingId: "L12", from: "o3", stars: 5, date: "2026-09-05", text: "15 laptops for our youth coding club. Life-changing for the kids.", tags: ["Above and beyond"] },
+  { listingId: "L1", from: "o3", stars: 5, date: demoDate(-15, [2, 4]), text: "Van was spotless and the volunteer driver knew the route to the nature park. Saved us about $180 on our youth excursion.", tags: ["As described", "On time"] },
+  { listingId: "L1", from: "o8", stars: 5, date: demoDate(-36, [2, 4]), text: "Smooth handover. Silver Threads was flexible when our session overran.", tags: ["Flexible"] },
+  { listingId: "L2", from: "o2", stars: 5, date: demoDate(-22, [1, 3, 5]), text: "Tie-down briefing was really thorough. Our seniors felt safe.", tags: ["As described", "Great briefing"] },
+  { listingId: "L3", from: "o4", stars: 5, date: demoDate(-12, [6]), text: "Swiftline's driver helped load 300 food packs. Incredible.", tags: ["Above and beyond"] },
+  { listingId: "L5", from: "o7", stars: 5, date: PAST.evergreenLent, text: "Room was ready and the projector worked first time. Will book again for our volunteer onboarding.", tags: ["As described", "Clean"] },
+  { listingId: "L5", from: "o9", stars: 4, date: PAST.bloomLent, text: "Great space. Parking is tight in the evenings, so plan ahead.", tags: ["As described"] },
+  { listingId: "L6", from: "o5", stars: 5, date: demoDate(-26, [6]), text: "Hosted our 100-person volunteer appreciation day here. The AV tech was a lifesaver.", tags: ["Above and beyond"] },
+  { listingId: "L7", from: "o4", stars: 4, date: demoDate(-23), text: "Handy for storing our festive hamper stock. Access hours could be longer.", tags: ["Secure"] },
+  { listingId: "L10", from: "o1", stars: 5, date: demoDate(-18), text: "Chairs and tables were exactly as listed. Easy self-collect.", tags: ["As described", "Easy pickup"] },
+  { listingId: "L10", from: "o6", stars: 4, date: demoDate(-40), text: "A couple of the tables were wobbly, but overall very useful.", tags: ["Good value"] },
+  { listingId: "L11", from: "o2", stars: 5, date: demoDate(-24), text: "Mic quality was great for our seniors' karaoke afternoon!", tags: ["As described"] },
+  { listingId: "L14", from: "o1", stars: 5, date: demoDate(-34, WEEKDAYS), text: "Our annual report finally looks professional. Fast turnaround too.", tags: ["Professional", "Fast"] },
+  { listingId: "L15", from: "o7", stars: 5, date: demoDate(-55, [1, 3]), text: "Took us from a shoebox of receipts to audit-ready in three weeks.", tags: ["Professional"] },
+  { listingId: "L12", from: "o3", stars: 5, date: demoDate(-49, WEEKDAYS), text: "15 laptops for our youth coding club. Life-changing for the kids.", tags: ["Above and beyond"] },
 ];
 
 const CURRENT_ORG_ID = "o1";
@@ -135,33 +163,34 @@ const CURRENT_ORG_ID = "o1";
 const SEED_STATE = {
   role: "charity",
   bookings: [
-    { id: "B1", listingId: "L10", by: "o1", date: "2026-10-31", units: 1, status: "confirmed", created: "2026-10-20" },
-    { id: "B2", listingId: "L1", by: "o1", date: "2026-10-27", units: 1, status: "pending", created: "2026-10-22" },
-    { id: "B3", listingId: "L11", by: "o1", date: "2026-10-10", units: 1, status: "completed", created: "2026-10-03", ratedByBorrower: false },
-    { id: "B4", listingId: "L14", by: "o1", date: "2026-09-15", units: 6, status: "completed", created: "2026-09-01", ratedByBorrower: true },
-    { id: "B5", listingId: "L5", by: "o4", date: "2026-10-29", units: 1, status: "pending", created: "2026-10-23", note: "Volunteer briefing for our Deepavali food-pack drive, about 25 people." },
-    { id: "B6", listingId: "L13", by: "o2", date: "2026-11-02", units: 3, status: "pending", created: "2026-10-24", note: "Three wheelchairs for a seniors' outing to Gardens by the Bay." },
-    { id: "B7", listingId: "L5", by: "o7", date: "2026-10-15", units: 1, status: "completed", created: "2026-10-08", ratedBySupplier: false },
+    { id: "B1", listingId: "L10", by: "o1", date: demoDate(2), units: 1, status: "confirmed", created: PAST.chairsBooked },
+    { id: "B2", listingId: "L1", by: "o1", date: demoDate(3, [2, 4]), units: 1, status: "pending", created: demoDate(-2) },
+    { id: "B3", listingId: "L11", by: "o1", date: PAST.paKit, units: 1, status: "completed", created: demoDate(-21), ratedByBorrower: false },
+    { id: "B4", listingId: "L14", by: "o1", date: PAST.designDone, units: 6, status: "completed", created: demoDate(-53), ratedByBorrower: true },
+    { id: "B5", listingId: "L5", by: "o4", date: demoDate(4, WEEKDAYS), units: 1, status: "pending", created: demoDate(-1), note: "Volunteer briefing for our food-pack drive, about 25 people." },
+    // L13 is instant-book, so this booking was confirmed straight away (no approval step).
+    { id: "B6", listingId: "L13", by: "o2", date: demoDate(6), units: 3, status: "confirmed", created: demoDate(-1), note: "Three wheelchairs for a seniors' outing to Gardens by the Bay." },
+    { id: "B7", listingId: "L5", by: "o7", date: PAST.evergreenLent, units: 1, status: "completed", created: demoDate(-16), ratedBySupplier: false },
   ],
   ledger: [
     { date: "2026-03-14", desc: "Welcome credits - pilot onboarding", amount: 100 },
-    { date: "2026-09-15", desc: "Graphic design (6 hrs) - Lighthouse Youth Network", amount: -36 },
-    { date: "2026-09-25", desc: "Lent training room - Bloom Mental Wellness", amount: 20 },
-    { date: "2026-10-04", desc: "Lent wheelchairs x4 (3 days) - Northstar Community Services", amount: 24 },
-    { date: "2026-10-10", desc: "PA & projector kit - Northstar Community Services", amount: -8 },
-    { date: "2026-10-15", desc: "Lent training room - Evergreen Bereavement Care", amount: 20 },
-    { date: "2026-10-20", desc: "Stackable chairs & tables - Lighthouse Youth Network", amount: -5 },
+    { date: PAST.designDone, desc: "Graphic design (6 hrs) - Lighthouse Youth Network", amount: -36 },
+    { date: PAST.bloomLent, desc: "Lent training room - Bloom Mental Wellness", amount: 20 },
+    { date: PAST.wheelchairsLent, desc: "Lent wheelchairs x4 (3 days) - Northstar Community Services", amount: 24 },
+    { date: PAST.paKit, desc: "PA & projector kit - Northstar Community Services", amount: -8 },
+    { date: PAST.evergreenLent, desc: "Lent training room - Evergreen Bereavement Care", amount: 20 },
+    { date: PAST.chairsBooked, desc: "Stackable chairs & tables - Lighthouse Youth Network", amount: -5 },
   ],
   myListingStatus: { L5: "live", L13: "live" },
   extraListings: [],
   extraReviews: [],
   pendingOrgs: [
-    { id: "p1", name: "Rainbow Bridge Children's Fund", uen: "T22SS0112K", charityNo: "02718", ipc: true, sector: "Children & youth", area: "Sengkang", contact: "Mei Ling Goh", email: "meiling@rainbowbridge.example.sg", submitted: "2026-10-21", docs: ["Charity registration certificate.pdf", "IPC status letter.pdf"] },
-    { id: "p2", name: "Pasir Ris Seniors Activity Network", uen: "T24SS0390L", charityNo: "02904", ipc: false, sector: "Seniors", area: "Pasir Ris", contact: "Rajesh Kumar", email: "rajesh@prsan.example.sg", submitted: "2026-10-22", docs: ["Charity registration certificate.pdf"] },
-    { id: "p3", name: "MindBridge Youth Counselling", uen: "T20SS0761M", charityNo: "02655", ipc: true, sector: "Mental well-being", area: "Bishan", contact: "Daniel Lim", email: "daniel@mindbridge.example.sg", submitted: "2026-10-23", docs: ["Charity registration certificate.pdf", "IPC status letter.pdf", "Latest annual report.pdf"] },
+    { id: "p1", name: "Rainbow Bridge Children's Fund", uen: "T22SS0112K", charityNo: "02718", ipc: true, sector: "Children & youth", area: "Sengkang", contact: "Mei Ling Goh", email: "meiling@rainbowbridge.example.sg", submitted: demoDate(-3), docs: ["Charity registration certificate.pdf", "IPC status letter.pdf"] },
+    { id: "p2", name: "Pasir Ris Seniors Activity Network", uen: "T24SS0390L", charityNo: "02904", ipc: false, sector: "Seniors", area: "Pasir Ris", contact: "Rajesh Kumar", email: "rajesh@prsan.example.sg", submitted: demoDate(-2), docs: ["Charity registration certificate.pdf"] },
+    { id: "p3", name: "MindBridge Youth Counselling", uen: "T20SS0761M", charityNo: "02655", ipc: true, sector: "Mental well-being", area: "Bishan", contact: "Daniel Lim", email: "daniel@mindbridge.example.sg", submitted: demoDate(-1), docs: ["Charity registration certificate.pdf", "IPC status letter.pdf", "Latest annual report.pdf"] },
   ],
   flags: [
-    { id: "f1", listingId: "L7", reason: "Access hours listed don't match what we were told at the warehouse.", by: "o4", date: "2026-10-19", open: true },
+    { id: "f1", listingId: "L7", reason: "Access hours listed don't match what we were told at the warehouse.", by: "o4", date: demoDate(-5), open: true },
   ],
 };
 

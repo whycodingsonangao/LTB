@@ -10,6 +10,8 @@ Double-click `index.html`. No build step or server is needed.
 
 Demo state (bookings, credits, new listings) is saved in your browser's localStorage. Use **Reset demo data** in the top bar to start over.
 
+Seed dates are relative to the day you open the page, so upcoming bookings and pending requests always fall in the next few days. Saved state keeps the dates from when it was saved, so click **Reset demo data** on the day you present.
+
 ## What's in it
 
 | Page | Route | Shows |
@@ -26,8 +28,8 @@ Demo state (bookings, credits, new listings) is saved in your browser's localSto
 Switch between **charity member** and **TMT Admin** using the "Viewing as" dropdown in the top bar.
 
 ### Suggested demo walkthrough
-1. Home → search for *Space: Training Room* within 10 km.
-2. Open a listing → Instant book one, or send a request.
+1. Home → search for *Space: Training Room* within 10 km on a weekday. You'll see two matches: your own room (tagged **Your listing**) and Bloom Mental Wellness's workshop room.
+2. Open Bloom's workshop room → **Instant book** it. Then open the 14-seater van (`#/listing/L1`) → **Send request**.
 3. Dashboard → My bookings → **Simulate approval** → **Mark completed** → rate the lender.
 4. Incoming requests → approve a request from another charity.
 5. Join → submit an application → switch to TMT Admin → verify it.

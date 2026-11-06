@@ -4,8 +4,10 @@
 
   // ---------------------------------------------------------------- helpers
   const app = document.getElementById("app");
-  const STORE_KEY = "kx-demo-state-v1";
+  // v2: seed dates are now relative to today, so state saved by v1 (fixed dates) is discarded.
+  const STORE_KEY = "resource-demo-state-v2";
   const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
   const ICONS = {
@@ -105,6 +107,7 @@
   const daysLabel = (days) => {
     if (days.length === 7) return "Daily";
     if ([1, 2, 3, 4, 5].every((d) => days.includes(d)) && days.length === 5) return "Weekdays";
+    if ([1, 2, 3, 4, 5, 6].every((d) => days.includes(d)) && days.length === 6) return "Mon - Sat";
     return days.map((d) => DAYS[d]).join(", ");
   };
   const priceHTML = (l, big = false) => l.credits === 0
@@ -237,7 +240,8 @@
     return `<a class="card pool-${pool}" href="#/listing/${l.id}">
       <div class="card-visual">${icon(catOf(l).icon)}
         <div class="badges">${l.booking === "instant" ? `<span class="badge instant">${icon("zap")} Instant book</span>` : '<span class="badge request">Request to book</span>'}
-        ${o.type === "corporate" ? '<span class="badge corp">Corporate gift</span>' : ""}</div></div>
+        ${o.type === "corporate" ? '<span class="badge corp">Corporate gift</span>' : ""}
+        ${isMine(l) ? '<span class="badge neutral">Your listing</span>' : ""}</div></div>
       <div class="card-body">
         <div class="card-cat">${esc(catOf(l).label)}</div>
         <h3>${esc(l.title)}</h3>
@@ -258,6 +262,10 @@
     const d = (s) => `style="--d:${s}s"`;
     const starRow = (from) => `<div class="xv-stars">${[0, 1, 2, 3, 4].map((i) => `<span style="--d:${(from + i * 0.15).toFixed(2)}s">${icon("star")}</span>`).join("")}</div>`;
     const silver = getOrg("o2"), light = getOrg("o3");
+    // The story's Thursday excursion: the next Thursday after today, so the date never looks stale.
+    const tomorrow = parseISO(todayISO()); tomorrow.setDate(tomorrow.getDate() + 1);
+    const thu = parseISO(nextAvailable({ days: [4] }, toISO(tomorrow)));
+    const thuLabel = `Thu, ${thu.getDate()} ${MONTHS[thu.getMonth()]}`;
     return [
       { label: "The problem", dur: 7, html: `
         <div class="xv-eyebrow xv-a fade" ${d(0.1)}>Tuesday, 2:00pm</div>
@@ -289,7 +297,7 @@
           <div class="xv-browser-bar"><i></i><i></i><i></i></div>
           <div class="xv-browser-body">
             <div class="xv-search">I need <span data-typed="Asset: 14-Seater Van" data-at="0.7" data-cps="24"></span>
-              <span class="xv-a fade" ${d(1.6)}>on</span> <span data-typed="Thu, 29 Oct" data-at="1.8" data-cps="18"></span>
+              <span class="xv-a fade" ${d(1.6)}>on</span> <span data-typed="${thuLabel}" data-at="1.8" data-cps="18"></span>
               <span class="xv-a fade" ${d(2.5)}>within</span> <span data-typed="10 km" data-at="2.7" data-cps="14"></span></div>
             <div class="xv-ping xv-a pop" ${d(3.3)}>${icon("zap")} 3 matches within 10 km</div>
             <div class="xv-results">
@@ -305,7 +313,7 @@
         <div class="xv-orgs">
           <div class="xv-org xv-a left" ${d(0.4)}>${avatar(light)}<div><b>${light.name}</b><div class="xv-delta neg xv-a pop" ${d(5.4)}>−30 credits</div></div></div>
           <div class="xv-track xv-a fade" ${d(0.6)}><div class="xv-line"></div>
-            <div class="xv-mover go" style="--d:1s;--t:1.6s"><span class="xv-tag">${icon("send")} Request · Thu 29 Oct</span></div>
+            <div class="xv-mover go" style="--d:1s;--t:1.6s"><span class="xv-tag">${icon("send")} Request · ${thuLabel.replace(",", "")}</span></div>
             <div class="xv-mover go back" style="--d:2.8s;--t:1.6s"><span class="xv-tag ok">${icon("check")} Approved</span></div>
             <div class="xv-mover go" style="--d:4.2s;--t:1.4s"><span class="xv-tag coin">${icon("coins")} 30 credits</span></div>
           </div>
@@ -760,7 +768,7 @@
           const enough = total <= bal;
           document.getElementById("avail-note").innerHTML = !date ? "" : ok
             ? `<div class="note ok">${icon("check")}<span>Available on ${fmtDate(date)}, ${esc(l.time)}</span></div>`
-            : `<div class="note bad">${icon("x")}<span>Not available on ${DAYS[parseISO(date).getDay()]}s. Next open date: <button type="button" class="link-btn" data-next>${fmtDate(nextAvailable(l, date))}</button></span></div>`;
+            : `<div class="note bad">${icon("x")}<span>Not available on ${DAY_NAMES[parseISO(date).getDay()]}s. Next open date: <button type="button" class="link-btn" data-next>${fmtDate(nextAvailable(l, date))}</button></span></div>`;
           document.getElementById("summary").innerHTML = `
             <div><span>${l.credits ? `${l.credits} credits × ${units} ${esc(l.unit)}${units > 1 ? "s" : ""}` : "Corporate gift"}</span><span>${total} credits</span></div>
             <div><span>Your balance</span><span>${bal} credits</span></div>
