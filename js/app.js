@@ -4,8 +4,8 @@
 
   // ---------------------------------------------------------------- helpers
   const app = document.getElementById("app");
-  // v3: adds the donor pool, payouts and a public-user ledger, so state saved by v2 is discarded.
-  const STORE_KEY = "resource-demo-state-v3";
+  // v4: 1 credit = S$1 and ledger entries are typed (granted vs earned), so state saved by v3 is discarded.
+  const STORE_KEY = "resource-demo-state-v4";
   const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -64,6 +64,7 @@
   const parseISO = (s) => new Date(s + "T00:00:00");
   const fmtDate = (s, withDay = true) => { const d = parseISO(s); return `${withDay ? DAYS[d.getDay()] + ", " : ""}${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`; };
   const todayISO = () => toISO(new Date());
+  const num = (n) => Number(n).toLocaleString("en-SG");
   const money = (n) => "S$" + Math.round(n).toLocaleString("en-SG");
 
   // ---------------------------------------------------------------- state
@@ -94,7 +95,21 @@
   const listingStatus = (l) => (isMine(l) ? state.myListingStatus[l.id] || "live" : "live");
   const reviewsFor = (id) => REVIEWS.concat(state.extraReviews).filter((r) => r.listingId === id).sort((a, b) => b.date.localeCompare(a.date));
   const avgRating = (id) => { const r = reviewsFor(id); return r.length ? r.reduce((s, x) => s + x.stars, 0) / r.length : 0; };
-  const balance = () => ledger().reduce((s, e) => s + e.amount, 0);
+  const balance = (entries = ledger()) => entries.reduce((s, e) => s + e.amount, 0);
+  // Splits a balance into granted credits (spend only) and earned credits (can be cashed out).
+  // Spending and donating draw on granted credits first, so earned credits stay cashable as long as possible.
+  function creditSplit(entries = ledger()) {
+    let granted = 0, earned = 0;
+    for (const e of entries) {
+      if (e.amount >= 0) { if (e.type === "earn") earned += e.amount; else granted += e.amount; continue; }
+      const out = -e.amount;
+      if (e.type === "redeem") { earned -= out; continue; }
+      const fromGranted = Math.min(granted, out);
+      granted -= fromGranted; earned -= out - fromGranted;
+    }
+    return { granted, earned: Math.max(0, earned) };
+  }
+  const cashable = () => creditSplit().earned;
   const marketPct = (l) => (l.value && l.credits ? Math.round((l.credits * CREDIT_VALUE * 100) / l.value) : 0);
   const poolLabel = (d) => (d === "pool" || !POOLS[d] ? "the common pool" : `${POOLS[d].label} (earmarked)`);
 
@@ -807,7 +822,7 @@
           const b = { id: "B" + Date.now(), listingId: l.id, by: curId(), date: form.date.value, units, created: todayISO(), note: form.note ? form.note.value : "" };
           if (l.booking === "instant") {
             b.status = "confirmed";
-            if (l.credits) ledger().push({ date: todayISO(), desc: `${l.title} - ${o.name}`, amount: -l.credits * units });
+            if (l.credits) ledger().push({ date: todayISO(), type: "spend", desc: `${l.title} - ${o.name}`, amount: -l.credits * units });
           } else b.status = "pending";
           state.bookings.push(b);
           save();
@@ -879,7 +894,7 @@
     if (tab === "overview") {
       body = `
         <div class="kpis">
-          <div class="kpi" style="--kc:var(--blue-tint)"><span>Credit balance</span><b>${balance()}</b><small>credits ≈ ${money(balance() * CREDIT_VALUE)}</small></div>
+          <div class="kpi" style="--kc:var(--blue-tint)"><span>Credit balance</span><b>${balance()}</b><small>${isPublic() ? "credits to spend" : `${cashable()} earned by lending, can cash out`}</small></div>
           <div class="kpi" style="--kc:var(--blue)"><span>Upcoming</span><b>${upcoming.length}</b><small>bookings and pending requests</small></div>
           <div class="kpi"><span>Needs your action</span><b>${pendingIn.length + toRate.length}</b><small>approvals and ratings</small></div>
           <div class="kpi" style="--kc:var(--green)"><span>Estimated savings</span><b>${money(saved)}</b><small>vs. renting at market rates</small></div>
@@ -935,28 +950,35 @@
       const earned = ledger().filter((e) => e.amount > 0).reduce((s, e) => s + e.amount, 0);
       const spent = -ledger().filter((e) => e.amount < 0).reduce((s, e) => s + e.amount, 0);
       const myPayouts = state.payouts.filter((x) => x.orgId === curId());
+      const split = creditSplit();
+      const typeTag = (e) => e.type === "earn" ? ' <span class="badge ok">Earned · can cash out</span>'
+        : e.type === "grant" || e.type === "buy" ? ' <span class="badge neutral">Spend only</span>' : "";
       body = `<div class="kpis">
-          <div class="kpi" style="--kc:var(--blue-tint)"><span>Balance</span><b>${balance()}</b><small>credits</small></div>
-          <div class="kpi" style="--kc:var(--green)"><span>Earned</span><b>${earned}</b><small>${isPublic() ? "credits bought" : "incl. 100 welcome credits"}</small></div>
-          <div class="kpi"><span>Used</span><b>${spent}</b><small>on borrowed, redeemed or donated</small></div>
-          <div class="kpi" style="--kc:var(--blue)"><span>Cash value</span><b>${money(balance() * CREDIT_VALUE)}</b><small>at S$${CREDIT_VALUE} per credit</small></div>
+          <div class="kpi" style="--kc:var(--blue-tint)"><span>Balance</span><b>${balance()}</b><small>credits (1 credit = ${money(CREDIT_VALUE)})</small></div>
+          ${isPublic() ? `
+          <div class="kpi" style="--kc:var(--green)"><span>Bought</span><b>${earned}</b><small>credits bought</small></div>
+          <div class="kpi"><span>Used</span><b>${spent}</b><small>on bookings or donated back</small></div>
+          <div class="kpi" style="--kc:var(--blue)"><span>Spend only</span><b>${balance()}</b><small>bought credits can't be cashed out</small></div>` : `
+          <div class="kpi" style="--kc:var(--green)"><span>Can cash out</span><b>${split.earned}</b><small>earned by lending</small></div>
+          <div class="kpi" style="--kc:var(--blue)"><span>Spend only</span><b>${split.granted}</b><small>welcome and pool credits</small></div>
+          <div class="kpi"><span>Used</span><b>${spent}</b><small>on bookings, redeemed or donated</small></div>`}
         </div>
         <div class="panel"><div class="panel-body" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:space-between">
-          <span class="small muted" style="max-width:560px">${isPublic() ? `Buy credits at S$${CREDIT_VALUE} each to use shared resources. Don't need them any more? Donate them back to the common pool.` : `Don't need all your credits? Redeem them with TMT for cash to cover running costs, or donate them back so another charity can use them.`}</span>
+          <span class="small muted" style="max-width:560px">${isPublic() ? `Buy credits at S$${CREDIT_VALUE} each to use shared resources. Don't need them any more? Donate them back to the common pool.` : `Credits you earn by lending can be redeemed with TMT for cash to cover running costs. Welcome and pool credits can only be spent, or donated back so another charity can use them.`}</span>
           <span style="display:flex;gap:10px;flex-wrap:wrap">
             ${isPublic() ? `<button class="btn" data-action="buy">${icon("coins")} Buy credits</button>` : `<button class="btn" data-action="redeem">${icon("dollar")} Redeem for cash</button>`}
             <button class="btn ghost" data-action="donate-back">${icon("heart")} Donate credits back</button></span></div></div>
-        ${myPayouts.length ? `<div class="panel"><div class="panel-head"><h3>Cash redemptions</h3></div>${myPayouts.map((x) => `<div class="row-item"><div class="ri-icon">${icon("dollar")}</div><div class="ri-main"><b>${money(x.amount)} for ${x.credits} credits</b><span>Requested ${fmtDate(x.date, false)}</span></div><div class="ri-actions">${x.status === "paid" ? '<span class="badge ok">Paid by TMT</span>' : '<span class="badge warn">Awaiting TMT payout</span>'}</div></div>`).join("")}</div>` : ""}
+        ${myPayouts.length ? `<div class="panel"><div class="panel-head"><h3>Cash redemptions</h3></div>${myPayouts.map((x) => `<div class="row-item"><div class="ri-icon">${icon("dollar")}</div><div class="ri-main"><b>${money(x.amount)} for ${num(x.credits)} credits</b><span>Requested ${fmtDate(x.date, false)}</span></div><div class="ri-actions">${x.status === "paid" ? '<span class="badge ok">Paid by TMT</span>' : '<span class="badge warn">Awaiting TMT payout</span>'}</div></div>`).join("")}</div>` : ""}
         <div class="two-col">
           <div class="panel"><div class="panel-head"><h3>Credit ledger</h3><button class="btn sm ghost" data-action="export">${icon("file")} Export for grant report</button></div>
             <div class="table-wrap"><table class="tbl"><thead><tr><th>Date</th><th>Description</th><th style="text-align:right">Credits</th><th style="text-align:right">Balance</th></tr></thead><tbody>
-            ${rows.map((e) => `<tr><td>${fmtDate(e.date, false)}</td><td>${esc(e.desc)}</td><td style="text-align:right" class="${e.amount > 0 ? "amt-pos" : "amt-neg"}">${e.amount > 0 ? "+" : ""}${e.amount}</td><td style="text-align:right">${e.run}</td></tr>`).join("")}
+            ${rows.map((e) => `<tr><td>${fmtDate(e.date, false)}</td><td>${esc(e.desc)}${typeTag(e)}</td><td style="text-align:right" class="${e.amount > 0 ? "amt-pos" : "amt-neg"}">${e.amount > 0 ? "+" : ""}${e.amount}</td><td style="text-align:right">${e.run}</td></tr>`).join("")}
             </tbody></table></div></div>
           <div class="panel"><div class="panel-head"><h3>How credits work</h3></div><div class="panel-body small">
-            <p><b>Where credits come from.</b> Donors fund them with real money (S$${CREDIT_VALUE} = 1 credit). TMT, the neutral trusted party, issues them. ${isPublic() ? "You can also buy credits yourself." : "Every new charity starts with 100 welcome credits from the common pool."}</p>
+            <p><b>Where credits come from.</b> Donors fund them with real money (${money(CREDIT_VALUE)} = 1 credit). TMT, the neutral trusted party, issues them. ${isPublic() ? "You can also buy credits yourself." : `Every new charity starts with ${WELCOME_CREDITS.toLocaleString()} welcome credits from the common pool.`}</p>
             <p><b>Earn</b> credits when another member uses your resource. They are priced at about ${Math.round(PAYOUT_RATE * 100)}% of the market rate, within TMT's ${Math.round(RATE_BAND.min * 100)}-${Math.round(RATE_BAND.max * 100)}% band.</p>
-            <p><b>Spend</b> credits to borrow. Users never pay cash out of pocket for donor-funded credits.</p>
-            <p><b>Don't need them?</b> ${isPublic() ? "Donate them back to the common pool." : "Redeem them for cash with TMT, or donate them back."}</p>
+            <p><b>Spend</b> credits to borrow. Welcome and pool credits are used first, so the credits you've earned stay available to cash out.</p>
+            <p><b>Given vs earned.</b> ${isPublic() ? "Credits you buy can be spent or donated back, but not cashed out." : "Credits you're given can only be spent. Credits you earn by lending can be cashed out with TMT, so joining the platform can't be turned into cash."}</p>
             <p class="muted" style="margin:0">Corporate gifts cost 0 credits and are for charities only.</p></div></div>
         </div>`;
     }
@@ -1033,7 +1055,7 @@
               <label><input type="radio" name="booking" value="request" checked><span><b>${icon("send")} Request to Book</b>You approve each request. Best for vehicles, kitchens and halls.</span></label>
             </div>
             <div class="grid-2">
-              <div class="field"><label for="n-credits">Credits per unit <span class="hint">(S$${CREDIT_VALUE} each)</span></label><input type="number" id="n-credits" name="credits" min="0" max="500" value="${creditsFor(100)}"><span class="hint" id="n-rate"></span></div>
+              <div class="field"><label for="n-credits">Credits per unit <span class="hint">(S$${CREDIT_VALUE} each)</span></label><input type="number" id="n-credits" name="credits" min="0" max="100000" value="${creditsFor(100)}"><span class="hint" id="n-rate"></span></div>
               <div class="field"><label for="n-unit">Unit</label><select id="n-unit" name="unit"><option>session</option><option>half-day</option><option>day</option><option>hour</option><option>week</option></select></div>
             </div>
             <div class="field"><label for="n-rules">House rules <span class="hint">(one per line, optional)</span></label><textarea id="n-rules" name="rules" style="min-height:70px" placeholder="Return with a full tank"></textarea></div>
@@ -1096,7 +1118,7 @@
         <div class="timeline">
           <div><span class="dot done">${icon("check")}</span> Application submitted</div>
           <div><span class="dot now">2</span> TMT verifies your charity registration & documents</div>
-          <div><span class="dot">3</span> Onboarding call &amp; 100 welcome credits</div>
+          <div><span class="dot">3</span> Onboarding call &amp; ${WELCOME_CREDITS.toLocaleString()} welcome credits (spend only)</div>
           <div><span class="dot">4</span> List your first resource and start exchanging</div>
         </div>
         <p class="small muted">Demo tip: switch to <b>TMT Admin</b> in the top bar to see your application in the verification queue.</p>
@@ -1170,10 +1192,10 @@
       const d = donated; donated = null;
       return { html: `<div class="wrap section"><div class="form-card success-box" style="max-width:680px;margin:0 auto">
         <div class="big-check">${icon("check")}</div><h2>Thank you, <strong>${esc(d.donor)}</strong></h2>
-        <p class="muted">TMT received ${money(d.amount)} and issued <b>${d.credits} credits</b> into ${esc(poolLabel(d.dest))}. Charities and members will spend them, so no borrower pays out of pocket.</p>
+        <p class="muted">TMT received ${money(d.amount)} and issued <b>${num(d.credits)} credits</b> into ${esc(poolLabel(d.dest))}. Charities and members will spend them, so no borrower pays out of pocket.</p>
         <div class="timeline">
           <div><span class="dot done">${icon("check")}</span> ${money(d.amount)} received by TMT (a registered charity)</div>
-          <div><span class="dot done">${icon("check")}</span> Converted at S$${CREDIT_VALUE} = 1 credit: ${d.credits} credits issued</div>
+          <div><span class="dot done">${icon("check")}</span> Converted at S$${CREDIT_VALUE} = 1 credit: ${num(d.credits)} credits issued</div>
           <div><span class="dot now">3</span> Credits held in ${esc(poolLabel(d.dest))} and allocated to verified members</div>
           <div><span class="dot">4</span> Spent on exchanges; owners redeem or donate them back. You'll get an impact report</div>
         </div>
@@ -1197,7 +1219,7 @@
           </fieldset>
           <fieldset><legend><span class="n">2</span> How much?</legend>
             <div class="chips" id="d-presets" style="margin-bottom:12px">${[500, 1000, 5000, 10000].map((n) => `<button type="button" class="chip" data-amt="${n}">${money(n)}</button>`).join("")}</div>
-            <div class="field"><label for="d-amt">Amount (S$)</label><input type="number" id="d-amt" name="amount" min="${CREDIT_VALUE}" step="10" value="1000" required></div>
+            <div class="field"><label for="d-amt">Amount (S$)</label><input type="number" id="d-amt" name="amount" min="${CREDIT_VALUE}" step="${CREDIT_VALUE}" value="1000" required></div>
             <div class="note ok" id="d-preview" style="margin-top:0"></div>
           </fieldset>
           <fieldset><legend><span class="n">3</span> Where should it go?</legend>
@@ -1218,7 +1240,7 @@
           </div>
           <div class="side-card">
             <h3>Recent funding</h3>
-            ${recent.map((d) => `<div class="don-row"><div><b>${esc(d.donor)}</b><span>${fmtDate(d.date, false)} · ${d.kind === "return" ? "credits donated back" : money(d.amount)} to ${esc(poolLabel(d.dest))}</span></div><b class="amt-pos">+${d.credits}</b></div>`).join("")}
+            ${recent.map((d) => `<div class="don-row"><div><b>${esc(d.donor)}</b><span>${fmtDate(d.date, false)} · ${d.kind === "return" ? "credits donated back" : money(d.amount)} to ${esc(poolLabel(d.dest))}</span></div><b class="amt-pos">+${num(d.credits)}</b></div>`).join("")}
           </div>
         </aside>
       </div></div>`,
@@ -1226,7 +1248,7 @@
         const f = document.getElementById("donate-form"), prev = document.getElementById("d-preview");
         const upd = () => {
           const amt = Number(f.amount.value) || 0, c = Math.floor(amt / CREDIT_VALUE);
-          prev.innerHTML = `${icon("coins")}<span><b>${money(amt)} becomes ${c} credits</b> (S$${CREDIT_VALUE} = 1 credit). That covers about ${Math.floor(c / vanCr)} half-days of a 14-seater van, or ${Math.floor(c / getListing("L5").credits)} training-room sessions, free to the charities that use them.</span>`;
+          prev.innerHTML = `${icon("coins")}<span><b>${money(amt)} becomes ${num(c)} credits</b> (S$${CREDIT_VALUE} = 1 credit). That covers about ${Math.floor(c / vanCr)} half-days of a 14-seater van, or ${Math.floor(c / getListing("L5").credits)} training-room sessions, free to the charities that use them.</span>`;
           document.querySelectorAll("#d-presets .chip").forEach((b) => b.classList.toggle("on", Number(b.dataset.amt) === amt));
           document.getElementById("d-earmark-wrap").hidden = f.dest.value !== "earmark";
         };
@@ -1255,14 +1277,14 @@
     if (bal < 1) { toast("You have no credits to donate yet."); return; }
     openModal("Donate credits back",
       `<p class="small muted">Don't need all your credits? Return some to the pool so another member can use them. You have <b>${bal} credits</b> (≈ ${money(bal * CREDIT_VALUE)}).</p>
-       <div class="field"><label for="db-amt">Credits to donate</label><input type="number" id="db-amt" min="1" max="${bal}" value="${Math.min(10, bal)}"></div>
+       <div class="field"><label for="db-amt">Credits to donate</label><input type="number" id="db-amt" min="1" max="${bal}" value="${Math.min(100, bal)}"></div>
        <div class="field"><label for="db-dest">Send to</label><select id="db-dest">${destOptions()}</select></div>
        <div class="note ok">${icon("heart")}<span>Donated credits are logged against your name in the funding ledger and can't be reversed.</span></div>`,
       `<button class="btn ghost" data-close>Cancel</button><button class="btn" id="db-go">Donate credits</button>`,
       (el) => el.querySelector("#db-go").addEventListener("click", () => {
         const n = Math.floor(Number(el.querySelector("#db-amt").value) || 0), dest = el.querySelector("#db-dest").value;
         if (n < 1 || n > balance()) { toast(`Enter between 1 and ${balance()} credits.`); return; }
-        ledger().push({ date: todayISO(), desc: `Donated back to ${poolLabel(dest)}`, amount: -n });
+        ledger().push({ date: todayISO(), type: "donate", desc: `Donated back to ${poolLabel(dest)}`, amount: -n });
         state.pool.available += n; state.pool.returned += n;
         state.donations.push({ id: "D" + Date.now(), date: todayISO(), donor: me().name, kind: "return", amount: 0, credits: n, dest });
         save(); closeModal(); render(); toast(`Thank you! ${n} credits are back in ${esc(poolLabel(dest))}.`);
@@ -1270,11 +1292,19 @@
   }
 
   function openRedeem() {
-    const bal = balance();
-    if (bal < 1) { toast("You have no credits to redeem yet."); return; }
+    const { granted, earned } = creditSplit();
+    if (earned < 1) {
+      toast(granted > 0
+        ? "Only credits earned by lending can be cashed out. Welcome and pool credits can only be spent."
+        : "You have no earned credits to cash out yet.");
+      return;
+    }
     openModal("Redeem credits for cash",
-      `<p class="small muted">Turn credits you've earned into cash to cover running costs such as van fuel and maintenance. TMT pays from the donor-funded reserve at S$${CREDIT_VALUE} per credit.</p>
-       <div class="field"><label for="rd-amt">Credits to redeem <span class="hint">(you have ${bal})</span></label><input type="number" id="rd-amt" min="1" max="${bal}" value="${Math.min(20, bal)}"></div>
+      `<p class="small muted">Turn credits you've earned by lending into cash to cover running costs such as van fuel and maintenance. TMT pays from the donor-funded reserve at ${money(CREDIT_VALUE)} per credit.</p>
+       <div class="summary-rows" style="margin-bottom:14px">
+         <div><span>Earned by lending (can cash out)</span><span>${earned} credits</span></div>
+         <div><span>Welcome and pool credits (spend only)</span><span>${granted} credits</span></div></div>
+       <div class="field"><label for="rd-amt">Credits to redeem <span class="hint">(up to ${earned})</span></label><input type="number" id="rd-amt" min="1" max="${earned}" value="${Math.min(100, earned)}"></div>
        <div class="note ok" id="rd-prev" style="margin-top:0"></div>
        <div class="note">${icon("info")}<span>Paid to your organisation's bank account on file within 5 working days. Mock-up only.</span></div>`,
       `<button class="btn ghost" data-close>Cancel</button><button class="btn" id="rd-go">Request payout</button>`,
@@ -1283,9 +1313,9 @@
         const upd = () => { prev.innerHTML = `${icon("dollar")}<span><b>${money((Number(inp.value) || 0) * CREDIT_VALUE)}</b> to your organisation</span>`; };
         inp.addEventListener("input", upd); upd();
         el.querySelector("#rd-go").addEventListener("click", () => {
-          const n = Math.floor(Number(inp.value) || 0);
-          if (n < 1 || n > balance()) { toast(`Enter between 1 and ${balance()} credits.`); return; }
-          ledger().push({ date: todayISO(), desc: `Redeemed for cash (${money(n * CREDIT_VALUE)}) via TMT`, amount: -n });
+          const n = Math.floor(Number(inp.value) || 0), max = cashable();
+          if (n < 1 || n > max) { toast(`You can cash out between 1 and ${max} credits (only credits earned by lending).`); return; }
+          ledger().push({ date: todayISO(), type: "redeem", desc: `Redeemed for cash (${money(n * CREDIT_VALUE)}) via TMT`, amount: -n });
           state.payouts.unshift({ id: "P" + Date.now(), orgId: curId(), credits: n, amount: n * CREDIT_VALUE, date: todayISO(), status: "pending" });
           save(); closeModal(); render(); toast(`Payout of ${money(n * CREDIT_VALUE)} requested. TMT will confirm shortly.`);
         });
@@ -1293,16 +1323,16 @@
   }
 
   function openBuyCredits() {
-    let pick = 25;
+    let pick = 250;
     openModal("Buy credits",
       `<p class="small muted">Members of the public pay S$${CREDIT_VALUE} per credit. Credits are about ${Math.round(PAYOUT_RATE * 100)}% of the market rate, so you still save on every resource, and your payment helps fund the sector.</p>
-       <div class="chips" id="by-packs" style="margin-bottom:14px">${[10, 25, 50, 100].map((n) => `<button type="button" class="chip ${n === pick ? "on" : ""}" data-n="${n}">${n} credits</button>`).join("")}</div>
+       <div class="chips" id="by-packs" style="margin-bottom:14px">${[100, 250, 500, 1000].map((n) => `<button type="button" class="chip ${n === pick ? "on" : ""}" data-n="${n}">${num(n)} credits</button>`).join("")}</div>
        <div class="summary-rows"><div><span id="by-n"></span><span id="by-cost"></span></div><div class="total"><span>New balance</span><span id="by-after"></span></div></div>
        <div class="note">${icon("shield")}<span>Mock-up: no real payment is taken. A real checkout would use PayNow or card, and your Singpass-verified identity is already on file.</span></div>`,
       `<button class="btn ghost" data-close>Cancel</button><button class="btn" id="by-go">Pay with PayNow (mock)</button>`,
       (el) => {
         const upd = () => {
-          el.querySelector("#by-n").textContent = `${pick} credits × S$${CREDIT_VALUE}`;
+          el.querySelector("#by-n").textContent = `${num(pick)} credits × S$${CREDIT_VALUE}`;
           el.querySelector("#by-cost").textContent = money(pick * CREDIT_VALUE);
           el.querySelector("#by-after").textContent = `${balance() + pick} credits`;
           el.querySelectorAll("#by-packs .chip").forEach((c) => c.classList.toggle("on", Number(c.dataset.n) === pick));
@@ -1310,8 +1340,8 @@
         el.querySelector("#by-packs").addEventListener("click", (e) => { const c = e.target.closest("[data-n]"); if (c) { pick = Number(c.dataset.n); upd(); } });
         upd();
         el.querySelector("#by-go").addEventListener("click", () => {
-          ledger().push({ date: todayISO(), desc: `Bought ${pick} credits (${money(pick * CREDIT_VALUE)}, PayNow)`, amount: pick });
-          save(); closeModal(); render(); toast(`${pick} credits added to your balance.`);
+          ledger().push({ date: todayISO(), type: "buy", desc: `Bought ${num(pick)} credits (${money(pick * CREDIT_VALUE)}, PayNow)`, amount: pick });
+          save(); closeModal(); render(); toast(`${num(pick)} credits added to your balance.`);
         });
       });
   }
@@ -1341,10 +1371,10 @@
             <div class="panel"><div class="panel-head"><h3>${icon("coins")} Credit funding (TMT as trusted intermediary)</h3><a class="small" href="#/donate">Open donor page</a></div>
               <div class="panel-body"><div class="pool-stats"><div><b>${state.pool.available.toLocaleString()}</b><span>credits in pool</span></div><div><b>${state.pool.donated.toLocaleString()}</b><span>funded by donors</span></div><div><b>${state.pool.returned.toLocaleString()}</b><span>donated back</span></div><div><b>${state.pool.issued.toLocaleString()}</b><span>issued to members</span></div></div>
               <p class="small muted" style="margin:12px 0 0">1 credit = ${money(CREDIT_VALUE)}. Listings must be priced at ${Math.round(RATE_BAND.min * 100)}-${Math.round(RATE_BAND.max * 100)}% of the market rate (standard ${Math.round(PAYOUT_RATE * 100)}%).</p></div>
-              ${state.donations.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5).map((d) => `<div class="row-item"><div class="ri-icon">${icon(d.kind === "return" ? "replay" : "heart")}</div><div class="ri-main"><b>${esc(d.donor)}</b><span>${fmtDate(d.date, false)} · ${d.kind === "return" ? "credits donated back" : money(d.amount) + " cash"} → ${esc(poolLabel(d.dest))}</span></div><b class="amt-pos">+${d.credits}</b></div>`).join("")}</div>
+              ${state.donations.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5).map((d) => `<div class="row-item"><div class="ri-icon">${icon(d.kind === "return" ? "replay" : "heart")}</div><div class="ri-main"><b>${esc(d.donor)}</b><span>${fmtDate(d.date, false)} · ${d.kind === "return" ? "credits donated back" : money(d.amount) + " cash"} → ${esc(poolLabel(d.dest))}</span></div><b class="amt-pos">+${num(d.credits)}</b></div>`).join("")}</div>
 
             <div class="panel"><div class="panel-head"><h3>Cash redemptions (${state.payouts.filter((x) => x.status === "pending").length} pending)</h3><span class="small muted">Owners cashing out earned credits</span></div>
-              ${state.payouts.map((x) => `<div class="row-item"><div class="ri-icon">${icon("dollar")}</div><div class="ri-main"><b>${esc(getOrg(x.orgId).name)}</b><span>${x.credits} credits → ${money(x.amount)} · requested ${fmtDate(x.date, false)}</span></div><div class="ri-actions">${x.status === "paid" ? '<span class="badge ok">Paid</span>' : `<button class="btn sm green" data-action="pay-out" data-id="${x.id}">${icon("check")} Mark paid</button>`}</div></div>`).join("") || '<div class="panel-body muted">No redemptions yet.</div>'}</div>
+              ${state.payouts.map((x) => `<div class="row-item"><div class="ri-icon">${icon("dollar")}</div><div class="ri-main"><b>${esc(getOrg(x.orgId).name)}</b><span>${num(x.credits)} credits → ${money(x.amount)} · requested ${fmtDate(x.date, false)}</span></div><div class="ri-actions">${x.status === "paid" ? '<span class="badge ok">Paid</span>' : `<button class="btn sm green" data-action="pay-out" data-id="${x.id}">${icon("check")} Mark paid</button>`}</div></div>`).join("") || '<div class="panel-body muted">No redemptions yet.</div>'}</div>
 
             <div class="panel"><div class="panel-head"><h3>Verification queue (${state.pendingOrgs.length})</h3><span class="small muted">Target turnaround: 3 working days</span></div>
               ${state.pendingOrgs.map((p) => `<div class="row-item"><div class="avatar sm" style="background:var(--blue-dark)">${esc(p.name.split(" ").map((w) => w[0]).slice(0, 2).join(""))}</div>
@@ -1397,21 +1427,32 @@
       case "redeem": openRedeem(); return;
       case "pay-out": { const x = state.payouts.find((p) => p.id === id); x.status = "paid"; save(); render(); toast(`${money(x.amount)} paid to ${esc(getOrg(x.orgId).name)}.`); return; }
       case "partner": toast("Email the TMT partnerships team at partners@example.sg"); return;
-      case "approve": { const b = booking(); b.status = "confirmed"; save(); render(); toast(`Approved. ${esc(getOrg(b.by).name)} has been notified.`); return; }
+      case "approve": {
+        const b = booking(), l = getListing(b.listingId), cost = l.credits * b.units;
+        // The public user is the only borrower besides the current charity whose balance the demo tracks,
+        // so charge them here (other charities' balances aren't modelled in the mock-up).
+        if (b.by === PUBLIC_USER.id && cost) {
+          if (balance(state.publicLedger) < cost) { toast(`${esc(PUBLIC_USER.name)} doesn't have enough credits for this booking any more. Decline it or ask them to top up.`); return; }
+          state.publicLedger.push({ date: todayISO(), type: "spend", desc: `${l.title} - ${getOrg(l.orgId).name}`, amount: -cost });
+        }
+        b.status = "confirmed"; save(); render(); toast(`Approved. ${esc(getOrg(b.by).name)} has been notified.`); return;
+      }
       case "decline": { const b = booking(); b.status = "declined"; save(); render(); toast("Request declined. The borrower has been notified."); return; }
       case "sim-approve": {
-        const b = booking(), l = getListing(b.listingId); b.status = "confirmed";
-        if (l.credits) ledger().push({ date: todayISO(), desc: `${l.title} - ${getOrg(l.orgId).name}`, amount: -l.credits * b.units });
+        const b = booking(), l = getListing(b.listingId), cost = l.credits * b.units;
+        if (cost > balance()) { toast(`You need ${cost} credits for this booking but have ${balance()}. ${isPublic() ? "Buy more credits" : "Lend a resource to earn more"} first, or cancel the request.`); return; }
+        b.status = "confirmed";
+        if (cost) ledger().push({ date: todayISO(), type: "spend", desc: `${l.title} - ${getOrg(l.orgId).name}`, amount: -cost });
         save(); render(); toast(`${esc(getOrg(l.orgId).name)} approved your request.`); return;
       }
       case "cancel": {
         const b = booking(), l = getListing(b.listingId);
-        if (b.status === "confirmed" && l.credits) ledger().push({ date: todayISO(), desc: `Refund: cancelled ${l.title}`, amount: l.credits * b.units });
+        if (b.status === "confirmed" && l.credits) ledger().push({ date: todayISO(), type: "refund", desc: `Refund: cancelled ${l.title}`, amount: l.credits * b.units });
         b.status = "cancelled"; save(); render(); toast("Booking cancelled."); return;
       }
       case "complete": {
         const b = booking(), l = getListing(b.listingId); b.status = "completed";
-        if (isMine(l) && l.credits) ledger().push({ date: todayISO(), desc: `Lent ${l.title} - ${getOrg(b.by).name}`, amount: l.credits * b.units });
+        if (isMine(l) && l.credits) ledger().push({ date: todayISO(), type: "earn", desc: `Lent ${l.title} - ${getOrg(b.by).name}`, amount: l.credits * b.units });
         save(); render(); openRating(b, isMine(l) ? "in" : "out"); return;
       }
       case "rate": openRating(booking(), el.dataset.side); return;
@@ -1421,8 +1462,8 @@
         const p = state.pendingOrgs.find((x) => x.id === id);
         state.pendingOrgs = state.pendingOrgs.filter((x) => x.id !== id);
         state.approvedOrgs = (state.approvedOrgs || []).concat([{ id: p.id, name: p.name, short: p.name.split(" ").map((w) => w[0]).slice(0, 2).join(""), area: p.area, color: "#1E8A5B", trust: 0, exchanges: 0 }]);
-        state.pool.available -= 100; state.pool.issued += 100;
-        save(); render(); toast(`${esc(p.name)} verified. 100 welcome credits issued from the common pool.`); return;
+        state.pool.available -= WELCOME_CREDITS; state.pool.issued += WELCOME_CREDITS;
+        save(); render(); toast(`${esc(p.name)} verified. ${WELCOME_CREDITS.toLocaleString()} welcome credits issued from the common pool.`); return;
       }
       case "reject": { const p = state.pendingOrgs.find((x) => x.id === id); state.pendingOrgs = state.pendingOrgs.filter((x) => x.id !== id); save(); render(); toast(`${esc(p.name)} rejected. The applicant will be told why.`); return; }
       case "resolve": state.flags.find((f) => f.id === id).open = false; save(); render(); toast("Flag resolved."); return;

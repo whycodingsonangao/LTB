@@ -20,12 +20,20 @@ Seed dates are relative to the day you open the page, so upcoming bookings and p
 | Browse | `#/browse` | Filters (resource type, category, date, distance, instant-book, free), sort, live match count |
 | Listing | `#/listing/L1` | Standardised category, weekly availability, house rules, owner trust score, reviews, booking panel (Instant vs Request to Book, credit maths) |
 | Organisation | `#/org/o2` | Member profile, listings and reviews |
-| Dashboard | `#/dashboard` | Overview, incoming requests (approve/decline), my bookings, my listings (pause/resume), credit ledger |
-| List a resource | `#/new` | Create a listing; goes live immediately (members are pre-verified) |
+| Dashboard | `#/dashboard` | Overview, incoming requests (approve/decline), my bookings, my listings (pause/resume), credit ledger, redeem for cash, donate credits back |
+| List a resource | `#/new` | Create a listing; goes live immediately (members are pre-verified). Credits must be 50-100% of the market rate |
 | Join | `#/join` | Verified-charity application (UEN, charity no., IPC, documents) |
-| TMT Admin | `#/admin` | Verification queue, flagged listings, exchange metrics, members by trust score |
+| Fund credits | `#/donate` | Donors turn money into credits for the common pool or one resource type |
+| TMT Admin | `#/admin` | Credit funding pool, cash redemptions, verification queue, flagged listings, exchange metrics, members by trust score |
 
-Switch between **charity member** and **TMT Admin** using the "Viewing as" dropdown in the top bar.
+Switch between **charity member**, **donor**, **member of the public** and **TMT Admin** using the "Viewing as" dropdown in the top bar.
+
+## How credits work
+
+- **1 credit = S$1.** Donors fund credits with real money, and TMT issues them. Members of the public can also buy credits.
+- Listings are priced at about **75% of the market rate** (TMT allows 50-100%).
+- **Given credits can only be spent; earned credits can be cashed out.** Welcome credits (S$1,000 for each new charity), pool allocations and credits bought by the public are spend only. Credits paid to an owner when someone uses their resource can be redeemed with TMT for cash. Bookings use spend-only credits first.
+- This stops anyone from joining as a charity just to cash out the welcome credits.
 
 ### Suggested demo walkthrough
 1. Home → search for *Space: Training Room* within 10 km on a weekday. You'll see two matches: your own room (tagged **Your listing**) and Bloom Mental Wellness's workshop room.

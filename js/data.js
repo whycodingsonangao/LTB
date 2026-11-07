@@ -17,9 +17,15 @@ function demoDate(offset, days) {
 const WEEKDAYS = [1, 2, 3, 4, 5];
 
 // Credit economics. Donors fund credits with real money and TMT, as the neutral
-// trusted party, issues them. 1 credit = S$10. Owners are valued at 75% of the
+// trusted party, issues them. 1 credit = S$1. Owners are valued at 75% of the
 // market rate, and every listing must sit inside the band below.
-const CREDIT_VALUE = 10;
+//
+// Credits come in two kinds, so joining the platform can't be turned into cash:
+// - granted (welcome credits, pool allocations, credits bought by the public): spend only
+// - earned (paid to an owner when another member uses their resource): can be cashed out
+// Ledger entries carry a `type`: grant | buy | refund | earn | spend | donate | redeem.
+const CREDIT_VALUE = 1;
+const WELCOME_CREDITS = 1000;
 const PAYOUT_RATE = 0.75;
 const RATE_BAND = { min: 0.5, max: 1 };
 const creditsFor = (marketValue) => Math.max(1, Math.round((marketValue * PAYOUT_RATE) / CREDIT_VALUE));
@@ -185,26 +191,27 @@ const SEED_STATE = {
     { id: "B7", listingId: "L5", by: "o7", date: PAST.evergreenLent, units: 1, status: "completed", created: demoDate(-16), ratedBySupplier: false },
   ],
   ledger: [
-    { date: "2026-03-14", desc: "Welcome credits - pilot onboarding", amount: 100 },
-    { date: PAST.designDone, desc: "Graphic design (6 hrs) - Lighthouse Youth Network", amount: -36 },
-    { date: PAST.bloomLent, desc: "Lent training room - Bloom Mental Wellness", amount: 23 },
-    { date: PAST.wheelchairsLent, desc: "Lent wheelchairs x4 (3 days) - Northstar Community Services", amount: 24 },
-    { date: PAST.paKit, desc: "PA & projector kit - Northstar Community Services", amount: -9 },
-    { date: PAST.evergreenLent, desc: "Lent training room - Evergreen Bereavement Care", amount: 23 },
-    { date: PAST.chairsBooked, desc: "Stackable chairs & tables - Lighthouse Youth Network", amount: -11 },
+    // Amounts follow each listing's credit price, so they stay right if the rates change.
+    { date: "2026-03-14", type: "grant", desc: "Welcome credits - pilot onboarding", amount: WELCOME_CREDITS },
+    { date: PAST.designDone, type: "spend", desc: "Graphic design (6 hrs) - Lighthouse Youth Network", amount: -creditsFor(80) * 6 },
+    { date: PAST.bloomLent, type: "earn", desc: "Lent training room - Bloom Mental Wellness", amount: creditsFor(300) },
+    { date: PAST.wheelchairsLent, type: "earn", desc: "Lent wheelchairs x4 (3 days) - Northstar Community Services", amount: creditsFor(30) * 3 },
+    { date: PAST.paKit, type: "spend", desc: "PA & projector kit - Northstar Community Services", amount: -creditsFor(120) },
+    { date: PAST.evergreenLent, type: "earn", desc: "Lent training room - Evergreen Bereavement Care", amount: creditsFor(300) },
+    { date: PAST.chairsBooked, type: "spend", desc: "Stackable chairs & tables - Lighthouse Youth Network", amount: -creditsFor(150) },
   ],
   publicLedger: [],
-  pool: { available: 1880, donated: 5600, returned: 180, issued: 3900 },
+  pool: { available: 18800, donated: 56000, returned: 1800, issued: 39000 },
   donations: [
-    { id: "D1", date: demoDate(-62), donor: "Meridian Bank Singapore", kind: "cash", amount: 20000, credits: 2000, dest: "pool" },
-    { id: "D2", date: demoDate(-48), donor: "Brightpath Tech", kind: "cash", amount: 12000, credits: 1200, dest: "pool" },
-    { id: "D3", date: demoDate(-33), donor: "Anonymous", kind: "cash", amount: 2500, credits: 250, dest: "equipment" },
-    { id: "D4", date: demoDate(-20), donor: "Tan Family Foundation", kind: "cash", amount: 21500, credits: 2150, dest: "pool" },
-    { id: "D5", date: demoDate(-8), donor: "Silver Threads Eldercare", kind: "return", amount: 0, credits: 180, dest: "pool" },
+    { id: "D1", date: demoDate(-62), donor: "Meridian Bank Singapore", kind: "cash", amount: 20000, credits: 20000, dest: "pool" },
+    { id: "D2", date: demoDate(-48), donor: "Brightpath Tech", kind: "cash", amount: 12000, credits: 12000, dest: "pool" },
+    { id: "D3", date: demoDate(-33), donor: "Anonymous", kind: "cash", amount: 2500, credits: 2500, dest: "equipment" },
+    { id: "D4", date: demoDate(-20), donor: "Tan Family Foundation", kind: "cash", amount: 21500, credits: 21500, dest: "pool" },
+    { id: "D5", date: demoDate(-8), donor: "Silver Threads Eldercare", kind: "return", amount: 0, credits: 1800, dest: "pool" },
   ],
   payouts: [
-    { id: "P1", orgId: "o2", credits: 120, amount: 1200, date: demoDate(-2), status: "pending" },
-    { id: "P2", orgId: "o4", credits: 60, amount: 600, date: demoDate(-12), status: "paid" },
+    { id: "P1", orgId: "o2", credits: 1200, amount: 1200, date: demoDate(-2), status: "pending" },
+    { id: "P2", orgId: "o4", credits: 600, amount: 600, date: demoDate(-12), status: "paid" },
   ],
   myListingStatus: { L5: "live", L13: "live" },
   extraListings: [],
