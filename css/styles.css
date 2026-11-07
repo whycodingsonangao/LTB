@@ -565,3 +565,14 @@ h1 { overflow-wrap: break-word; }
   .xv-a, .xv-stars span { animation-duration: .01s !important; }
   .xv-idle { animation: none; }
 }
+
+/* ---- credits, funding and the money flow ---- */
+.mkt { display: inline-block; font-size: .68rem; font-weight: 700; color: var(--green); background: var(--green-tint); padding: 1px 7px; border-radius: 99px; white-space: nowrap; vertical-align: middle; }
+.pool-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; }
+.pool-stats div { background: var(--bg-soft); border-radius: var(--radius); padding: 10px 12px; }
+.pool-stats b { display: block; font-size: 1.5rem; color: var(--ink); line-height: 1.2; }
+.pool-stats span { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
+.don-row { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: .88rem; }
+.don-row:last-child { border-bottom: 0; }
+.don-row div span { display: block; font-size: .78rem; color: var(--muted); }
+.form-layout aside > .side-card { position: static; }
