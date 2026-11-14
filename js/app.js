@@ -799,7 +799,7 @@
         if (!form) return;
         // Phones: the booking panel sits below the reviews, so keep a Book button in reach until it scrolls into view.
         const main = document.getElementById("main"), panel = document.getElementById("book-panel");
-        main.insertAdjacentHTML("beforeend", `<div class="mobile-book" id="mobile-book"><div>${priceHTML(l)}</div><button class="btn" type="button" data-action="to-book">${l.booking === "instant" ? "Instant book" : "Request to book"}</button></div><div class="mb-spacer"></div>`);
+        main.insertAdjacentHTML("beforeend", `<div class="mobile-book" id="mobile-book"><div>${priceHTML(l)}</div><button class="btn" type="button" data-action="to-book">Choose a date</button></div><div class="mb-spacer"></div>`);
         const bar = document.getElementById("mobile-book");
         if ("IntersectionObserver" in window) new IntersectionObserver(([en]) => bar.classList.toggle("hide", en.isIntersecting)).observe(panel);
         const upd = () => {
@@ -945,6 +945,12 @@
       };
       const upcoming = group(entries.filter((e) => e.b.date >= today)).sort((a, b) => a.date.localeCompare(b.date));
       const past = group(entries.filter((e) => e.b.date < today)).sort((a, b) => b.date.localeCompare(a.date));
+      // Say when credits actually move: owners are paid when the item is returned, borrowers pay on approval.
+      const creditLabel = (b, cost) => {
+        if (!cost) return "Free";
+        if (lending) return b.status === "completed" ? `+${num(cost)} credits` : `+${num(cost)} on return`;
+        return b.status === "pending" ? `${num(cost)} credits on approval` : `${num(cost)} credits`;
+      };
       const itemHTML = ({ b, l }) => {
         const other = getOrg(lending ? b.by : l.orgId), cost = l.credits * b.units;
         const actions = lending && b.status === "pending"
@@ -955,7 +961,7 @@
             <div><b><a href="#/listing/${l.id}">${esc(l.title)}</a></b>
               <span>${lending ? "Borrowed by" : "From"} <a href="#/org/${other.id}">${esc(other.name)}</a> · ${b.units} ${esc(l.unit)}${b.units > 1 ? "s" : ""}</span>
               ${b.note ? `<div class="small" style="margin-top:4px;color:var(--blue)">"${esc(b.note)}"</div>` : ""}</div></div>
-          <div class="sched-side">${statusBadge(b.status)}<span class="sched-cr ${lending && cost ? "amt-pos" : ""}">${cost ? `${lending ? "+" : ""}${num(cost)} credits` : "Free"}</span></div>
+          <div class="sched-side">${statusBadge(b.status)}<span class="sched-cr ${lending && cost && b.status === "completed" ? "amt-pos" : ""}">${creditLabel(b, cost)}</span></div>
           ${actions}</div>`;
       };
       const dayHTML = (g, isPast) => {
@@ -966,9 +972,9 @@
       };
       const counts = { borrow: outgoing.filter((b) => live.includes(b.status) && b.date >= today).length, lend: incoming.filter((b) => live.includes(b.status) && b.date >= today).length };
       body = `<div class="sched-top">
-          ${isPublic() ? "" : `<div class="seg" role="tablist">
-            <a href="#/dashboard/schedule" class="${!lending ? "on" : ""}" role="tab">Borrowing <span>${counts.borrow}</span></a>
-            <a href="#/dashboard/schedule?mode=lending" class="${lending ? "on" : ""}" role="tab">Lending <span>${counts.lend}</span></a></div>`}
+          ${isPublic() ? "" : `<nav class="seg" aria-label="Schedule view">
+            <a href="#/dashboard/schedule" class="${!lending ? "on" : ""}"${!lending ? ' aria-current="page"' : ""}>Borrowing <span>${counts.borrow}</span></a>
+            <a href="#/dashboard/schedule?mode=lending" class="${lending ? "on" : ""}"${lending ? ' aria-current="page"' : ""}>Lending <span>${counts.lend}</span></a></nav>`}
           <p class="small muted" style="margin:0">${lending ? "When other members are using your resources, by day and time." : "When you're using other members' resources, by day and time."} The next 7 days are highlighted.</p></div>
         ${upcoming.length ? upcoming.map((g) => dayHTML(g, false)).join("") : `<div class="panel"><div class="panel-body muted">${lending ? "Nobody has booked your resources yet." : 'Nothing booked yet. <a href="#/browse">Find a resource</a>.'}</div></div>`}
         ${past.length ? `<h4 class="sched-past-title">Earlier</h4>${past.map((g) => dayHTML(g, true)).join("")}` : ""}`;
@@ -1473,7 +1479,15 @@
     switch (action) {
       case "menu": document.getElementById("nav").classList.toggle("open"); return;
       case "filters": { const open = document.getElementById("filters").classList.toggle("open"); el.setAttribute("aria-expanded", open); el.innerHTML = icon("search") + (open ? " Hide filters" : " Filters"); return; }
-      case "to-book": document.getElementById("book-panel")?.scrollIntoView({ behavior: "smooth", block: "start" }); return;
+      case "to-book": {
+        // Scroll the booking panel into view below the sticky header, so its price isn't hidden behind it.
+        const panel = document.getElementById("book-panel");
+        if (panel) {
+          const headerH = document.querySelector(".site-header")?.offsetHeight || 0;
+          window.scrollTo({ top: panel.getBoundingClientRect().top + window.scrollY - headerH - 12, behavior: "smooth" });
+        }
+        return;
+      }
       case "reset": resetState(); render(); toast("Demo data reset."); return;
       case "noop": e.preventDefault(); toast("In the real platform this would open the Charity Portal record."); return;
       case "as-admin": state.role = "admin"; save(); render(); return;
