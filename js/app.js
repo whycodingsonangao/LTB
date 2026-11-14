@@ -196,7 +196,7 @@
     else if (p0 === "browse") view = viewBrowse(query);
     else if (p0 === "listing" && getListing(p1)) view = viewListing(getListing(p1));
     else if (p0 === "org" && getOrg(p1)) view = viewOrg(getOrg(p1));
-    else if (p0 === "dashboard") view = viewDashboard(p1 || "overview");
+    else if (p0 === "dashboard") view = viewDashboard(p1 || "overview", query);
     else if (p0 === "new") view = viewNewListing();
     else if (p0 === "join") view = viewJoin();
     else if (p0 === "donate") view = viewDonate();
@@ -212,8 +212,8 @@
   // ---------------------------------------------------------------- chrome
   function demoBar() {
     return `<div class="demo-bar"><div class="wrap">
-      <div><span class="demo-pill">Mock-up</span>All organisations, listings and figures are fictional.</div>
-      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+      <div><span class="demo-pill">Mock-up</span><span class="demo-text">All organisations, listings and figures are fictional.</span></div>
+      <div class="db-right" style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
         <label>Viewing as
           <select id="role-switch" aria-label="Switch demo role">
             <option value="charity" ${state.role === "charity" ? "selected" : ""}>${esc(charityOrg().name)} (charity member)</option>
@@ -609,6 +609,7 @@
       <p class="muted" style="margin:0">Showing distances from ${esc(me().name)} in ${esc(me().area)}.</p>
     </div></div>
     <div class="wrap"><div class="browse-layout">
+      <button type="button" class="btn ghost filter-toggle" data-action="filters" aria-controls="filters" aria-expanded="false">${icon("search")} Filters</button>
       <aside class="filters" id="filters">
         <h4>Search</h4>
         <input type="text" id="f-q" placeholder="e.g. van, projector, kitchen" value="${esc(f.q)}">
@@ -788,7 +789,7 @@
             <div class="tags">${(rv.tags || []).map((t) => `<span class="badge neutral">${esc(t)}</span>`).join("")}</div></div></div>`; }).join("")
             : '<p class="muted">No reviews yet. Be the first to borrow this resource.</p>'}</div>
       </div>
-      <aside class="book-panel">${bookPanel}</aside>
+      <aside class="book-panel" id="book-panel">${bookPanel}</aside>
     </div></div>`;
 
     return {
@@ -796,6 +797,11 @@
       mount() {
         const form = document.getElementById("book-form");
         if (!form) return;
+        // Phones: the booking panel sits below the reviews, so keep a Book button in reach until it scrolls into view.
+        const main = document.getElementById("main"), panel = document.getElementById("book-panel");
+        main.insertAdjacentHTML("beforeend", `<div class="mobile-book" id="mobile-book"><div>${priceHTML(l)}</div><button class="btn" type="button" data-action="to-book">${l.booking === "instant" ? "Instant book" : "Request to book"}</button></div><div class="mb-spacer"></div>`);
+        const bar = document.getElementById("mobile-book");
+        if ("IntersectionObserver" in window) new IntersectionObserver(([en]) => bar.classList.toggle("hide", en.isIntersecting)).observe(panel);
         const upd = () => {
           const date = form.date.value, units = Math.max(1, Number(form.units.value) || 1);
           const total = l.credits * units, bal = balance(), ok = date && l.days.includes(parseISO(date).getDay());
@@ -856,7 +862,7 @@
   }
 
   // ---------------------------------------------------------------- DASHBOARD
-  function viewDashboard(tab) {
+  function viewDashboard(tab, query = {}) {
     if (isDonor()) return { html: `<div class="wrap section"><div class="empty">${icon("heart")}<h3>You're viewing as a donor</h3><p>Donors fund credits and follow their impact on the funding page.</p><a class="btn" href="#/donate">Open the donor page</a></div></div>` };
     if (isAdmin()) return { html: `<div class="wrap section"><div class="empty">${icon("info")}<h3>You're viewing as TMT Admin</h3><p>The member dashboard is for charities. Open the admin console instead.</p><a class="btn" href="#/admin">Open admin console</a></div></div>` };
 
@@ -869,8 +875,8 @@
     const saved = outgoing.filter((b) => b.status === "completed" || b.status === "confirmed").reduce((s, b) => s + getListing(b.listingId).value * b.units, 0);
 
     const tabs = isPublic()
-      ? [["overview", "Overview"], ["bookings", "My bookings"], ["credits", "Credits"]]
-      : [["overview", "Overview"], ["requests", "Incoming requests", pendingIn.length], ["bookings", "My bookings"],
+      ? [["overview", "Overview"], ["schedule", "Schedule"], ["bookings", "My bookings"], ["credits", "Credits"]]
+      : [["overview", "Overview"], ["schedule", "Schedule"], ["requests", "Incoming requests", pendingIn.length], ["bookings", "My bookings"],
         ["listings", "My listings"], ["credits", "Credits"]];
 
     const bookingRow = (b, side) => {
@@ -923,6 +929,49 @@
               <p class="muted" style="margin:0">Future idea: an AI engine that nudges members to dedicate idle resources, and nudges donors toward the pools with the most unmet demand.</p></div></div>`}
           </div>
         </div>`;
+    } else if (tab === "schedule") {
+      // Everything on the calendar, by day: what you're borrowing, or what others are borrowing from you.
+      const lending = query.mode === "lending" && !isPublic();
+      const live = ["pending", "confirmed", "completed"];
+      const pool = (lending ? incoming : outgoing).filter((b) => live.includes(b.status));
+      const today = todayISO();
+      const entries = pool.map((b) => ({ b, l: getListing(b.listingId) }));
+      const dayLabel = (iso) => { const d = parseISO(iso); return `${DAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]}${d.getFullYear() !== new Date().getFullYear() ? " " + d.getFullYear() : ""}`; };
+      const diffDays = (iso) => Math.round((parseISO(iso) - parseISO(today)) / 864e5);
+      const group = (list) => {
+        const by = {};
+        list.forEach((e) => (by[e.b.date] = by[e.b.date] || []).push(e));
+        return Object.keys(by).map((date) => ({ date, items: by[date] }));
+      };
+      const upcoming = group(entries.filter((e) => e.b.date >= today)).sort((a, b) => a.date.localeCompare(b.date));
+      const past = group(entries.filter((e) => e.b.date < today)).sort((a, b) => b.date.localeCompare(a.date));
+      const itemHTML = ({ b, l }) => {
+        const other = getOrg(lending ? b.by : l.orgId), cost = l.credits * b.units;
+        const actions = lending && b.status === "pending"
+          ? `<div class="sched-actions"><button class="btn sm green" data-action="approve" data-id="${b.id}">${icon("check")} Approve</button><button class="btn sm ghost" data-action="decline" data-id="${b.id}">Decline</button></div>` : "";
+        return `<div class="sched-item pool-${poolOf(l)}">
+          <div class="sched-time">${icon("clock")} ${esc(l.time)}</div>
+          <div class="sched-main"><div class="ri-icon">${icon(catOf(l).icon)}</div>
+            <div><b><a href="#/listing/${l.id}">${esc(l.title)}</a></b>
+              <span>${lending ? "Borrowed by" : "From"} <a href="#/org/${other.id}">${esc(other.name)}</a> · ${b.units} ${esc(l.unit)}${b.units > 1 ? "s" : ""}</span>
+              ${b.note ? `<div class="small" style="margin-top:4px;color:var(--blue)">"${esc(b.note)}"</div>` : ""}</div></div>
+          <div class="sched-side">${statusBadge(b.status)}<span class="sched-cr ${lending && cost ? "amt-pos" : ""}">${cost ? `${lending ? "+" : ""}${num(cost)} credits` : "Free"}</span></div>
+          ${actions}</div>`;
+      };
+      const dayHTML = (g, isPast) => {
+        const n = diffDays(g.date), soon = !isPast && n <= 7;
+        const tag = isPast ? "" : n === 0 ? '<span class="badge instant">Today</span>' : n === 1 ? '<span class="badge info">Tomorrow</span>' : soon ? `<span class="badge info">In ${n} days</span>` : "";
+        return `<section class="sched-day ${soon ? "soon" : ""} ${n === 0 && !isPast ? "today" : ""} ${isPast ? "past" : ""}">
+          <header class="sched-dayhead"><h3>${dayLabel(g.date)}</h3>${tag}</header>${g.items.map(itemHTML).join("")}</section>`;
+      };
+      const counts = { borrow: outgoing.filter((b) => live.includes(b.status) && b.date >= today).length, lend: incoming.filter((b) => live.includes(b.status) && b.date >= today).length };
+      body = `<div class="sched-top">
+          ${isPublic() ? "" : `<div class="seg" role="tablist">
+            <a href="#/dashboard/schedule" class="${!lending ? "on" : ""}" role="tab">Borrowing <span>${counts.borrow}</span></a>
+            <a href="#/dashboard/schedule?mode=lending" class="${lending ? "on" : ""}" role="tab">Lending <span>${counts.lend}</span></a></div>`}
+          <p class="small muted" style="margin:0">${lending ? "When other members are using your resources, by day and time." : "When you're using other members' resources, by day and time."} The next 7 days are highlighted.</p></div>
+        ${upcoming.length ? upcoming.map((g) => dayHTML(g, false)).join("") : `<div class="panel"><div class="panel-body muted">${lending ? "Nobody has booked your resources yet." : 'Nothing booked yet. <a href="#/browse">Find a resource</a>.'}</div></div>`}
+        ${past.length ? `<h4 class="sched-past-title">Earlier</h4>${past.map((g) => dayHTML(g, true)).join("")}` : ""}`;
     } else if (tab === "requests") {
       const hist = incoming.filter((b) => b.status !== "pending").sort((a, b) => b.date.localeCompare(a.date));
       body = `<div class="panel"><div class="panel-head"><h3>Awaiting your approval (${pendingIn.length})</h3><span class="small muted">Requests for your "Request to book" listings</span></div>
@@ -990,6 +1039,10 @@
         <nav class="tabs">${tabs.map(([k, label, n]) => `<a href="#/dashboard/${k}" class="${tab === k ? "active" : ""}">${label}${n ? `<span class="count">${n}</span>` : ""}</a>`).join("")}</nav>
       </div></section>
       <div class="wrap dash-body">${body}</div>`,
+      mount() {
+        const tabsEl = document.querySelector(".tabs"), cur = tabsEl?.querySelector("a.active");
+        if (cur) tabsEl.scrollLeft = Math.max(0, cur.offsetLeft - 16);
+      },
     };
   }
 
@@ -1419,6 +1472,8 @@
     const booking = () => state.bookings.find((b) => b.id === id);
     switch (action) {
       case "menu": document.getElementById("nav").classList.toggle("open"); return;
+      case "filters": { const open = document.getElementById("filters").classList.toggle("open"); el.setAttribute("aria-expanded", open); el.innerHTML = icon("search") + (open ? " Hide filters" : " Filters"); return; }
+      case "to-book": document.getElementById("book-panel")?.scrollIntoView({ behavior: "smooth", block: "start" }); return;
       case "reset": resetState(); render(); toast("Demo data reset."); return;
       case "noop": e.preventDefault(); toast("In the real platform this would open the Charity Portal record."); return;
       case "as-admin": state.role = "admin"; save(); render(); return;
