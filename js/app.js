@@ -250,7 +250,7 @@
     return `<footer class="site-footer"><div class="wrap">
       <div class="footer-grid">
         <div>${LOGO}
-          <p>Re.Source is a members-only exchange where Singapore's community well-being organisations share idle spaces, manpower, equipment and services. A pilot managed by TMT.</p></div>
+          <p>Re.Source is a members-only exchange where Singapore's community well-being organisations share idle spaces, manpower, equipment and services, and members of the public can use them too. A pilot managed by TMT.</p></div>
         <div><h4>Exchange</h4><a href="#/browse">Browse resources</a><a href="#/new">List a resource</a><a href="#/?s=how">How credits work</a><a href="#/donate">Fund credits (donors)</a></div>
         <div><h4>Resources</h4>${Object.values(POOLS).map((p) => `<a href="#/browse?pool=${p.id}">${p.label}</a>`).join("")}</div>
         <div><h4>Join</h4><a href="#/join">Apply as a charity</a><a href="#/?s=partners">Corporate partners</a><a href="#/admin">TMT admin</a></div>
@@ -349,7 +349,7 @@
           </div>
           <div class="xv-org xv-a right" ${d(0.4)}>${avatar(silver)}<div><b>${silver.name}</b><div class="xv-delta pos xv-a pop" ${d(5.6)}>+${vanCr} credits</div></div></div>
         </div>
-        <div class="xv-a fade" ${d(6)} style="color:#C8CCD3;font-size:1.2em">Lenders earn credits. Borrowers spend them. Borrowers pay S$0 out of pocket.</div>` },
+        <div class="xv-a fade" ${d(6)} style="color:#C8CCD3;font-size:1.2em">Lenders earn credits. Borrowers spend them. Charities pay S$0 out of pocket.</div>` },
       { label: "Rate", dur: 6, html: `
         <div class="xv-eyebrow xv-a fade" ${d(0.1)}>Both sides rate</div>
         <div class="xv-row">
@@ -480,7 +480,7 @@
       <div>
         <span class="eyebrow">For Singapore's community well-being sector</span>
         <h1><strong>Share</strong> what ${icon("truck")} you have.<br><strong>Find</strong> ${icon("tool")} what you need.</h1>
-        <p class="lead">A members-only exchange where verified charities lend each other idle vans, rooms, equipment and skilled volunteers. No phone tag. No committee wait. Credits are funded by donors, so borrowing costs the borrower nothing.</p>
+        <p class="lead">A members-only exchange where verified charities lend each other idle vans, rooms, equipment and skilled volunteers, and members of the public can pay to use them too. No phone tag. No committee wait. Donors fund the credits, so charities pay nothing out of pocket.</p>
         <form class="search-card" id="hero-search">
           <div class="search-sentence">
             <span>I need</span> ${categorySelect("")}
@@ -558,7 +558,7 @@
     <section class="section"><div class="wrap">
       <div class="section-head center"><span class="eyebrow">Trust &amp; accountability</span><h2>Built on <strong>peer trust</strong>, not red tape</h2></div>
       <div class="trust-grid">
-        <div class="trust-item"><div class="ti-icon">${icon("shield")}</div><h3>Verified charities only</h3><p class="muted">During the pilot, only registered charities and IPCs vetted by TMT can join. Every member shows a verification badge.</p></div>
+        <div class="trust-item"><div class="ti-icon">${icon("shield")}</div><h3>Verified members only</h3><p class="muted">Charities and IPCs are vetted by TMT before they join, and members of the public verify their identity with Singpass. Every member shows a verification badge.</p></div>
         <div class="trust-item"><div class="ti-icon">${icon("star")}</div><h3>Two-way ratings</h3><p class="muted">Lenders and borrowers rate each other after every exchange. Trust scores are public to all members.</p></div>
         <div class="trust-item"><div class="ti-icon">${icon("coins")}</div><h3>Transparent credit ledger</h3><p class="muted">Every credit is traced from donor to exchange, with its estimated market value, so you have records ready for grant reports and audits.</p></div>
       </div>
@@ -1186,7 +1186,7 @@
     return {
       html: `
       <div class="page-head"><div class="wrap"><div class="crumbs"><a href="#/">Home</a> / Join</div>
-        <h1>Join the <strong style="font-weight:700;color:var(--red)">pilot</strong></h1><p class="muted" style="margin:0">During the pilot, membership is open to registered charities in Singapore that work on community well-being.</p></div></div>
+        <h1>Join the <strong style="font-weight:700;color:var(--red)">pilot</strong></h1><p class="muted" style="margin:0">This application is for registered charities in Singapore that work on community well-being. Members of the public join with Singpass instead.</p></div></div>
       <div class="wrap"><div class="form-layout">
         <form class="form-card" id="join-form">
           <fieldset><legend><span class="n">1</span> Organisation details</legend>
@@ -1218,7 +1218,8 @@
           <h3>Who can join the pilot?</h3>
           <ul><li>Registered charities under the Charities Act</li><li>Institutions of a Public Character (IPCs)</li><li>Focused on community well-being: seniors, youth, families, caregivers, persons with disabilities, mental health</li></ul>
           <h3>Not yet open</h3>
-          <ul class="muted"><li>Informal ground-up groups and interest groups</li><li>Individuals</li></ul>
+          <ul class="muted"><li>Informal ground-up groups and interest groups</li></ul>
+          <p class="small"><b>Individuals</b> don't apply here. They join as members of the public by verifying with Singpass, then buy credits to use listings. During the pilot they can't list resources.</p>
           <p class="small">Corporate partners join by invitation. Contact the TMT team at <b>partners@example.sg</b>.</p>
           <div class="note">${icon("shield")}<span>Verification happens once. After that, members deal with each other directly and peer ratings keep everyone accountable.</span></div>
         </aside>
@@ -1251,7 +1252,7 @@
       const d = donated; donated = null;
       return { html: `<div class="wrap section"><div class="form-card success-box" style="max-width:680px;margin:0 auto">
         <div class="big-check">${icon("check")}</div><h2>Thank you, <strong>${esc(d.donor)}</strong></h2>
-        <p class="muted">TMT received ${money(d.amount)} and issued <b>${num(d.credits)} credits</b> into ${esc(poolLabel(d.dest))}. Charities and members will spend them, so no borrower pays out of pocket.</p>
+        <p class="muted">TMT received ${money(d.amount)} and issued <b>${num(d.credits)} credits</b> into ${esc(poolLabel(d.dest))}. Charities spend them on the vans, rooms and skills they need, so they pay nothing out of pocket.</p>
         <div class="timeline">
           <div><span class="dot done">${icon("check")}</span> ${money(d.amount)} received by TMT (a registered charity)</div>
           <div><span class="dot done">${icon("check")}</span> Converted at S$${CREDIT_VALUE} = 1 credit: ${num(d.credits)} credits issued</div>
@@ -1266,7 +1267,7 @@
       html: `
       <div class="page-head"><div class="wrap"><div class="crumbs"><a href="#/">Home</a> / Fund credits</div>
         <h1>Fund <strong style="font-weight:700;color:var(--red)">credits</strong>, fund the sector</h1>
-        <p class="muted" style="margin:0;max-width:760px">Give real money, and TMT turns it into credits that charities spend on vans, rooms and skills. Borrowers pay nothing, and owners turn idle assets into income.</p></div></div>
+        <p class="muted" style="margin:0;max-width:760px">Give real money, and TMT turns it into credits that charities spend on vans, rooms and skills. Charities pay nothing out of pocket, and owners turn idle assets into income.</p></div></div>
       <div class="wrap"><div class="form-layout">
         <form class="form-card" id="donate-form">
           <fieldset><legend><span class="n">1</span> About you</legend>
